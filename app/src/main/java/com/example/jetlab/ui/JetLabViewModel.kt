@@ -17,6 +17,7 @@ import com.example.jetlab.data.GitLabSession
 import com.example.jetlab.data.GitLabTodo
 import com.example.jetlab.data.GitLabUser
 import com.example.jetlab.data.AppSettings
+import com.example.jetlab.data.CachedDashboard
 import com.example.jetlab.data.SessionStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -110,27 +112,36 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
                     }.fold(
                         onSuccess = { initial ->
                             var data = initial
+                            val cached = sessionStore.cachedDashboard.first()
+                            data = data.withCache(cached)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(todos = runCatching { GitLabRepository(active).todos() }.getOrDefault(emptyList()))
+                            data = data.copy(todos = runCatching { GitLabRepository(active).todos() }.getOrDefault(data.todos))
+                            sessionStore.saveTodos(data.todos)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(events = runCatching { GitLabRepository(active).events() }.getOrDefault(emptyList()))
+                            data = data.copy(events = runCatching { GitLabRepository(active).events() }.getOrDefault(data.events))
+                            sessionStore.saveEvents(data.events)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(assignedWorkItems = runCatching { GitLabRepository(active).assignedIssues(data.user.id) }.getOrDefault(emptyList()))
+                            data = data.copy(assignedWorkItems = runCatching { GitLabRepository(active).assignedIssues(data.user.id) }.getOrDefault(data.assignedWorkItems))
+                            sessionStore.saveAssignedWorkItems(data.assignedWorkItems)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(assignedMergeRequests = runCatching { GitLabRepository(active).assignedMergeRequests(data.user.id) }.getOrDefault(emptyList()))
+                            data = data.copy(assignedMergeRequests = runCatching { GitLabRepository(active).assignedMergeRequests(data.user.id) }.getOrDefault(data.assignedMergeRequests))
+                            sessionStore.saveAssignedMergeRequests(data.assignedMergeRequests)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(groups = runCatching { GitLabRepository(active).groups("") }.getOrDefault(emptyList()))
+                            data = data.copy(groups = runCatching { GitLabRepository(active).groups("") }.getOrDefault(data.groups))
+                            sessionStore.saveGroups(data.groups)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(workItems = runCatching { GitLabRepository(active).workItems("") }.getOrDefault(emptyList()))
+                            data = data.copy(workItems = runCatching { GitLabRepository(active).workItems("") }.getOrDefault(data.workItems))
+                            sessionStore.saveWorkItems(data.workItems)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(projects = runCatching { GitLabRepository(active).projects("") }.getOrDefault(emptyList()))
+                            data = data.copy(projects = runCatching { GitLabRepository(active).projects("") }.getOrDefault(data.projects))
+                            sessionStore.saveProjects(data.projects)
                             emit(LoadState.Success(data))
                         },
                         onFailure = { emit(LoadState.Error(it.toFriendlyMessage())) }
@@ -189,13 +200,14 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
             _project.value = LoadState.Loading
             runCatching {
                 val repo = GitLabRepository(active)
+                val project = repo.project(projectId)
                 ProjectData(
-                    project = repo.project(projectId),
-                    issues = repo.issues(projectId),
-                    mergeRequests = repo.mergeRequests(projectId),
-                    commits = repo.commits(projectId),
-                    branches = repo.branches(projectId),
-                    boards = repo.boards(projectId)
+                    project = project,
+                    issues = runCatching { repo.issues(projectId) }.getOrDefault(emptyList()),
+                    mergeRequests = runCatching { repo.mergeRequests(projectId) }.getOrDefault(emptyList()),
+                    commits = runCatching { repo.commits(projectId) }.getOrDefault(emptyList()),
+                    branches = runCatching { repo.branches(projectId) }.getOrDefault(emptyList()),
+                    boards = runCatching { repo.boards(projectId) }.getOrDefault(emptyList())
                 )
             }.fold(
                 onSuccess = { _project.value = LoadState.Success(it) },
@@ -325,4 +337,15 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
     }
+
+    private fun DashboardData.withCache(cache: CachedDashboard): DashboardData =
+        copy(
+            projects = cache.projects,
+            groups = cache.groups,
+            workItems = cache.workItems,
+            assignedWorkItems = cache.assignedWorkItems,
+            assignedMergeRequests = cache.assignedMergeRequests,
+            todos = cache.todos,
+            events = cache.events
+        )
 }
