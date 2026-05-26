@@ -22,7 +22,7 @@ data class GitLabNamespace(
 data class GitLabProject(
     val id: Long,
     val name: String,
-    @SerialName("path_with_namespace") val pathWithNamespace: String,
+    @SerialName("path_with_namespace") val pathWithNamespace: String = name,
     val description: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null,
     @SerialName("web_url") val webUrl: String? = null,
@@ -52,8 +52,9 @@ data class GitLabIssue(
     val iid: Long,
     val title: String,
     val state: String,
+    @SerialName("project_id") val projectId: Long? = null,
     val labels: List<String> = emptyList(),
-    @SerialName("web_url") val webUrl: String,
+    @SerialName("web_url") val webUrl: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     val author: GitLabUser? = null
@@ -64,6 +65,7 @@ data class GitLabTodoTarget(
     val id: Long? = null,
     val iid: Long? = null,
     val title: String? = null,
+    val state: String? = null,
     @SerialName("web_url") val webUrl: String? = null
 )
 
@@ -86,9 +88,10 @@ data class GitLabMergeRequest(
     val iid: Long,
     val title: String,
     val state: String,
+    @SerialName("project_id") val projectId: Long? = null,
     @SerialName("source_branch") val sourceBranch: String,
     @SerialName("target_branch") val targetBranch: String,
-    @SerialName("web_url") val webUrl: String,
+    @SerialName("web_url") val webUrl: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     @SerialName("merge_status") val mergeStatus: String? = null,
@@ -101,6 +104,8 @@ data class GitLabEvent(
     val actionName: String? = null,
     @SerialName("action_name") val actionNameSnake: String? = null,
     @SerialName("target_type") val targetType: String? = null,
+    @SerialName("target_iid") val targetIid: Long? = null,
+    @SerialName("target_id") val targetId: Long? = null,
     @SerialName("target_title") val targetTitle: String? = null,
     @SerialName("project_id") val projectId: Long? = null,
     @SerialName("created_at") val createdAt: String? = null,
@@ -108,6 +113,17 @@ data class GitLabEvent(
 ) {
     val displayAction: String get() = actionName ?: actionNameSnake ?: "updated"
 }
+
+@Serializable
+data class GitLabNote(
+    val id: Long,
+    val body: String,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+    val author: GitLabUser? = null,
+    val system: Boolean = false,
+    val resolvable: Boolean = false
+)
 
 @Serializable
 data class GitLabBoard(

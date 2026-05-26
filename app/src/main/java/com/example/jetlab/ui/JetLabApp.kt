@@ -63,6 +63,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -95,7 +96,7 @@ import com.example.jetlab.data.GitLabProject
 import com.example.jetlab.data.GitLabTodo
 import kotlinx.coroutines.launch
 
-private enum class Screen { Loading, SignIn, Dashboard, Project }
+private enum class Screen { Loading, SignIn, Dashboard, Project, Group, Detail }
 
 private enum class WorkSection(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Outlined.Home),
@@ -113,6 +114,8 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
     val session by viewModel.session.collectAsState()
     val dashboard by viewModel.dashboard.collectAsState()
     val project by viewModel.project.collectAsState()
+    val group by viewModel.group.collectAsState()
+    val detail by viewModel.detail.collectAsState()
     val query by viewModel.searchQuery.collectAsState()
     var screen by remember { mutableStateOf(Screen.Loading) }
     var section by remember { mutableStateOf(WorkSection.Home) }
@@ -126,8 +129,8 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
         if (session.isLoaded && !session.isReady) section = WorkSection.Home
     }
 
-    BackHandler(enabled = screen == Screen.Project || section != WorkSection.Home) {
-        if (screen == Screen.Project) {
+    BackHandler(enabled = screen in listOf(Screen.Project, Screen.Group, Screen.Detail) || section != WorkSection.Home) {
+        if (screen in listOf(Screen.Project, Screen.Group, Screen.Detail)) {
             screen = Screen.Dashboard
         } else {
             section = WorkSection.Home
@@ -152,11 +155,49 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
                         viewModel.loadProject(it.id)
                         screen = Screen.Project
                     },
+                    onGroupClick = {
+                        viewModel.loadGroup(it)
+                        screen = Screen.Group
+                    },
+                    onIssueClick = {
+                        it.projectId?.let { projectId ->
+                            viewModel.loadIssue(projectId, it.iid)
+                            screen = Screen.Detail
+                        }
+                    },
+                    onMergeRequestClick = {
+                        it.projectId?.let { projectId ->
+                            viewModel.loadMergeRequest(projectId, it.iid)
+                            screen = Screen.Detail
+                        }
+                    },
+                    onTodoClick = {
+                        viewModel.loadTodo(it)
+                        screen = Screen.Detail
+                    },
+                    onEventClick = {
+                        viewModel.loadEvent(it)
+                        screen = Screen.Detail
+                    },
                     onSignOut = viewModel::signOut
                 )
                 Screen.Project -> ProjectScreen(
                     state = project,
                     onBack = { screen = Screen.Dashboard }
+                )
+                Screen.Group -> GroupScreen(
+                    state = group,
+                    onBack = { screen = Screen.Dashboard },
+                    onProjectClick = {
+                        viewModel.loadProject(it.id)
+                        screen = Screen.Project
+                    }
+                )
+                Screen.Detail -> WorkDetailScreen(
+                    state = detail,
+                    onBack = { screen = Screen.Dashboard },
+                    onComment = viewModel::addComment,
+                    onUpdateIssue = viewModel::updateIssueStatusAndLabels
                 )
             }
         }
@@ -240,6 +281,11 @@ private fun DashboardScreen(
     onSectionChange: (WorkSection) -> Unit,
     onQueryChange: (String) -> Unit,
     onProjectClick: (GitLabProject) -> Unit,
+    onGroupClick: (GitLabGroup) -> Unit,
+    onIssueClick: (GitLabIssue) -> Unit,
+    onMergeRequestClick: (GitLabMergeRequest) -> Unit,
+    onTodoClick: (GitLabTodo) -> Unit,
+    onEventClick: (GitLabEvent) -> Unit,
     onSignOut: () -> Unit
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -307,12 +353,12 @@ private fun DashboardScreen(
                         when (section) {
                             WorkSection.Home -> homeItems(data, onSectionChange)
                             WorkSection.Projects -> projectItems(data.projects, onProjectClick)
-                            WorkSection.Groups -> groupItems(data.groups)
-                            WorkSection.WorkItems -> issueItems(data.workItems, "No open work items found.")
-                            WorkSection.Assigned -> issueItems(data.assignedWorkItems, "Nothing is assigned to you.")
-                            WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests)
-                            WorkSection.Todos -> todoItems(data.todos)
-                            WorkSection.Notifications -> eventItems(data.events)
+                            WorkSection.Groups -> groupItems(data.groups, onGroupClick)
+                            WorkSection.WorkItems -> issueItems(data.workItems, "No open work items found.", onIssueClick)
+                            WorkSection.Assigned -> issueItems(data.assignedWorkItems, "Nothing is assigned to you.", onIssueClick)
+                            WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests, onMergeRequestClick)
+                            WorkSection.Todos -> todoItems(data.todos, onTodoClick)
+                            WorkSection.Notifications -> eventItems(data.events, onEventClick)
                         }
                     }
                 }
@@ -428,7 +474,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.projectItems(
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.groupItems(groups: List<GitLabGroup>) {
+private fun androidx.compose.foundation.lazy.LazyListScope.groupItems(groups: List<GitLabGroup>, onClick: (GitLabGroup) -> Unit) {
     if (groups.isEmpty()) {
         item { EmptyBlock("No groups matched that search.") }
     } else {
@@ -436,7 +482,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.groupItems(groups: Li
             ListCard(
                 icon = Icons.Outlined.AccountTree,
                 title = group.name,
-                meta = "${group.fullPath}${group.visibility?.let { " - $it" } ?: ""}"
+                meta = "${group.fullPath}${group.visibility?.let { " - $it" } ?: ""}",
+                onClick = { onClick(group) }
             ) {
                 group.description?.takeIf { it.isNotBlank() }?.let {
                     Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -446,23 +493,23 @@ private fun androidx.compose.foundation.lazy.LazyListScope.groupItems(groups: Li
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.issueItems(issues: List<GitLabIssue>, empty: String) {
+private fun androidx.compose.foundation.lazy.LazyListScope.issueItems(issues: List<GitLabIssue>, empty: String, onClick: (GitLabIssue) -> Unit) {
     if (issues.isEmpty()) {
         item { EmptyBlock(empty) }
     } else {
-        items(issues, key = { it.id }) { IssueRow(it) }
+        items(issues, key = { it.id }) { IssueRow(it, onClick = { onClick(it) }) }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.mrItems(mrs: List<GitLabMergeRequest>) {
+private fun androidx.compose.foundation.lazy.LazyListScope.mrItems(mrs: List<GitLabMergeRequest>, onClick: (GitLabMergeRequest) -> Unit = {}) {
     if (mrs.isEmpty()) {
         item { EmptyBlock("No merge requests are assigned to you.") }
     } else {
-        items(mrs, key = { it.id }) { MergeRequestRow(it) }
+        items(mrs, key = { it.id }) { MergeRequestRow(it, onClick = { onClick(it) }) }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.todoItems(todos: List<GitLabTodo>) {
+private fun androidx.compose.foundation.lazy.LazyListScope.todoItems(todos: List<GitLabTodo>, onClick: (GitLabTodo) -> Unit) {
     if (todos.isEmpty()) {
         item { EmptyBlock("Your to-do list is clear.") }
     } else {
@@ -470,13 +517,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.todoItems(todos: List
             ListCard(
                 icon = Icons.Outlined.TaskAlt,
                 title = todo.target?.title ?: todo.body ?: todo.targetType,
-                meta = "${todo.action} - ${todo.targetType}${todo.project?.name?.let { " in $it" } ?: ""}"
+                meta = "${todo.action} - ${todo.targetType}${todo.project?.name?.let { " in $it" } ?: ""}",
+                onClick = { onClick(todo) }
             )
         }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.eventItems(events: List<GitLabEvent>) {
+private fun androidx.compose.foundation.lazy.LazyListScope.eventItems(events: List<GitLabEvent>, onClick: (GitLabEvent) -> Unit) {
     if (events.isEmpty()) {
         item { EmptyBlock("No recent notifications yet.") }
     } else {
@@ -484,7 +532,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.eventItems(events: Li
             ListCard(
                 icon = Icons.Outlined.History,
                 title = event.targetTitle ?: event.targetType ?: "GitLab activity",
-                meta = "${event.author?.username ?: "Someone"} ${event.displayAction}"
+                meta = "${event.author?.username ?: "Someone"} ${event.displayAction}",
+                onClick = { onClick(event) }
             )
         }
     }
@@ -565,7 +614,7 @@ private fun ProjectScreen(state: LoadState<ProjectData>, onBack: () -> Unit) {
             ) {
                 item { ProjectHero(state.value.project, state.value.branches.size) }
                 when (tab) {
-                    0 -> issueItems(state.value.issues, "This project has no open issues.")
+                    0 -> issueItems(state.value.issues, "This project has no open issues.", onClick = {})
                     1 -> mrItems(state.value.mergeRequests)
                     2 -> items(state.value.commits, key = { it.id }) { CommitRow(it) }
                     3 -> boardItems(state.value.boards)
@@ -585,6 +634,157 @@ private fun androidx.compose.foundation.lazy.LazyListScope.boardItems(boards: Li
                 title = board.name ?: "Issue board ${board.id}",
                 meta = "Backlog ${if (board.hideBacklogList) "hidden" else "visible"} - Closed ${if (board.hideClosedList) "hidden" else "visible"}"
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GroupScreen(
+    state: LoadState<GroupData>,
+    onBack: () -> Unit,
+    onProjectClick: (GitLabProject) -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Group", fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            when (state) {
+                LoadState.Loading -> item { LoadingBlock("Loading group projects") }
+                is LoadState.Error -> item { ErrorBlock(state.message) }
+                is LoadState.Success -> {
+                    item {
+                        ListCard(
+                            icon = Icons.Outlined.AccountTree,
+                            title = state.value.group.name,
+                            meta = state.value.group.fullPath
+                        )
+                    }
+                    projectItems(state.value.projects, onProjectClick)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WorkDetailScreen(
+    state: LoadState<WorkDetailData>,
+    onBack: () -> Unit,
+    onComment: (String) -> Unit,
+    onUpdateIssue: (Boolean, String) -> Unit
+) {
+    var comment by remember { mutableStateOf("") }
+    var labels by remember { mutableStateOf("") }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Conversation", fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            when (state) {
+                LoadState.Loading -> item { LoadingBlock("Loading conversation") }
+                is LoadState.Error -> item { ErrorBlock(state.message) }
+                is LoadState.Success -> {
+                    val data = state.value
+                    item {
+                        Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7F1))) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(data.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Text(data.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    MetricChip(Icons.Outlined.Tag, data.state)
+                                    data.labels.forEach { MetricChip(Icons.Outlined.Tag, it) }
+                                }
+                            }
+                        }
+                    }
+                    if (data.target is DetailTarget.Issue) {
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = labels.ifBlank { data.labels.joinToString(",") },
+                                    onValueChange = { labels = it },
+                                    label = { Text("Labels, comma separated") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = { onUpdateIssue(false, labels.ifBlank { data.labels.joinToString(",") }) }) {
+                                        Text("Reopen")
+                                    }
+                                    Button(onClick = { onUpdateIssue(true, labels.ifBlank { data.labels.joinToString(",") }) }) {
+                                        Text("Close / Save")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = comment,
+                                onValueChange = { comment = it },
+                                label = { Text("Add a comment") },
+                                minLines = 3,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                onClick = {
+                                    onComment(comment)
+                                    comment = ""
+                                },
+                                enabled = comment.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Comment")
+                            }
+                        }
+                    }
+                    if (data.notes.isEmpty()) {
+                        item { EmptyBlock("No conversation history yet.") }
+                    } else {
+                        items(data.notes, key = { it.id }) { note ->
+                            ListCard(
+                                icon = Icons.Outlined.History,
+                                title = note.author?.name ?: note.author?.username ?: "GitLab",
+                                meta = note.createdAt ?: ""
+                            ) {
+                                Text(note.body)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -649,18 +849,19 @@ private fun ProjectHero(project: GitLabProject, branchCount: Int) {
 }
 
 @Composable
-private fun IssueRow(issue: GitLabIssue) {
-    ListCard(icon = Icons.Outlined.TaskAlt, title = "#${issue.iid} ${issue.title}", meta = "${issue.state} by ${issue.author?.username ?: "unknown"}") {
+private fun IssueRow(issue: GitLabIssue, onClick: () -> Unit = {}) {
+    ListCard(icon = Icons.Outlined.TaskAlt, title = "#${issue.iid} ${issue.title}", meta = "${issue.state} by ${issue.author?.username ?: "unknown"}", onClick = onClick) {
         LabelRow(issue.labels)
     }
 }
 
 @Composable
-private fun MergeRequestRow(mr: GitLabMergeRequest) {
+private fun MergeRequestRow(mr: GitLabMergeRequest, onClick: () -> Unit = {}) {
     ListCard(
         icon = Icons.AutoMirrored.Outlined.MergeType,
         title = "!${mr.iid} ${mr.title}",
-        meta = "${mr.sourceBranch} into ${mr.targetBranch}"
+        meta = "${mr.sourceBranch} into ${mr.targetBranch}",
+        onClick = onClick
     ) {
         Text(mr.mergeStatus ?: mr.state, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -676,8 +877,13 @@ private fun CommitRow(commit: GitLabCommit) {
 }
 
 @Composable
-private fun ListCard(icon: ImageVector, title: String, meta: String, content: @Composable () -> Unit = {}) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+private fun ListCard(icon: ImageVector, title: String, meta: String, onClick: (() -> Unit)? = null, content: @Composable () -> Unit = {}) {
+    val modifier = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
             Spacer(Modifier.width(12.dp))

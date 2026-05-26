@@ -10,8 +10,12 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
@@ -99,6 +103,46 @@ class GitLabApi(
 
     suspend fun project(projectId: Long): GitLabProject = get("projects/$projectId")
 
+    suspend fun groupProjects(groupId: Long): List<GitLabProject> =
+        getList("groups/$groupId/projects") {
+            parameter("include_subgroups", true)
+            parameter("with_shared", true)
+            parameter("order_by", "name")
+            parameter("sort", "asc")
+            parameter("simple", false)
+            parameter("per_page", 100)
+        }
+
+    suspend fun issue(projectId: Long, issueIid: Long): GitLabIssue =
+        get("projects/$projectId/issues/$issueIid")
+
+    suspend fun mergeRequest(projectId: Long, mergeRequestIid: Long): GitLabMergeRequest =
+        get("projects/$projectId/merge_requests/$mergeRequestIid")
+
+    suspend fun issueNotes(projectId: Long, issueIid: Long): List<GitLabNote> =
+        getList("projects/$projectId/issues/$issueIid/notes") {
+            parameter("sort", "asc")
+            parameter("per_page", 100)
+        }
+
+    suspend fun mergeRequestNotes(projectId: Long, mergeRequestIid: Long): List<GitLabNote> =
+        getList("projects/$projectId/merge_requests/$mergeRequestIid/notes") {
+            parameter("sort", "asc")
+            parameter("per_page", 100)
+        }
+
+    suspend fun addIssueNote(projectId: Long, issueIid: Long, body: String): GitLabNote =
+        post("projects/$projectId/issues/$issueIid/notes", mapOf("body" to body))
+
+    suspend fun addMergeRequestNote(projectId: Long, mergeRequestIid: Long, body: String): GitLabNote =
+        post("projects/$projectId/merge_requests/$mergeRequestIid/notes", mapOf("body" to body))
+
+    suspend fun updateIssue(projectId: Long, issueIid: Long, stateEvent: String?, labels: String?): GitLabIssue =
+        put("projects/$projectId/issues/$issueIid") {
+            stateEvent?.takeIf { it.isNotBlank() }?.let { parameter("state_event", it) }
+            labels?.let { parameter("labels", it) }
+        }
+
     suspend fun issues(projectId: Long): List<GitLabIssue> =
         getList("projects/$projectId/issues") {
             parameter("state", "opened")
@@ -137,6 +181,28 @@ class GitLabApi(
         val normalizedHost = host.trim().removeSuffix("/")
         val url = "$normalizedHost/api/v4/$path"
         return client.get(url) {
+            header("PRIVATE-TOKEN", tokenProvider())
+            block()
+        }.body()
+    }
+
+    private suspend inline fun <reified T> post(path: String, body: Any): T {
+        val normalizedHost = host.trim().removeSuffix("/")
+        val url = "$normalizedHost/api/v4/$path"
+        return client.post(url) {
+            header("PRIVATE-TOKEN", tokenProvider())
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+    }
+
+    private suspend inline fun <reified T> put(
+        path: String,
+        crossinline block: HttpRequestBuilder.() -> Unit = {}
+    ): T {
+        val normalizedHost = host.trim().removeSuffix("/")
+        val url = "$normalizedHost/api/v4/$path"
+        return client.put(url) {
             header("PRIVATE-TOKEN", tokenProvider())
             block()
         }.body()
