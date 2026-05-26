@@ -194,7 +194,19 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
                 )
                 Screen.Project -> ProjectScreen(
                     state = project,
-                    onBack = { screen = Screen.Dashboard }
+                    onBack = { screen = Screen.Dashboard },
+                    onIssueClick = {
+                        it.projectId?.let { projectId ->
+                            viewModel.loadIssue(projectId, it.iid)
+                            screen = Screen.Detail
+                        }
+                    },
+                    onMergeRequestClick = {
+                        it.projectId?.let { projectId ->
+                            viewModel.loadMergeRequest(projectId, it.iid)
+                            screen = Screen.Detail
+                        }
+                    }
                 )
                 Screen.Group -> GroupScreen(
                     state = group,
@@ -202,6 +214,15 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
                     onProjectClick = {
                         viewModel.loadProject(it.id)
                         screen = Screen.Project
+                    },
+                    onGroupClick = {
+                        viewModel.loadGroup(it)
+                    },
+                    onIssueClick = {
+                        it.projectId?.let { projectId ->
+                            viewModel.loadIssue(projectId, it.iid)
+                            screen = Screen.Detail
+                        }
                     }
                 )
                 Screen.Detail -> WorkDetailScreen(
@@ -667,7 +688,12 @@ private fun HomeNavRow(section: WorkSection, count: Int, onSectionChange: (WorkS
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProjectScreen(state: LoadState<ProjectData>, onBack: () -> Unit) {
+private fun ProjectScreen(
+    state: LoadState<ProjectData>,
+    onBack: () -> Unit,
+    onIssueClick: (GitLabIssue) -> Unit,
+    onMergeRequestClick: (GitLabMergeRequest) -> Unit
+) {
     var tab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Issues", "MRs", "Commits", "Boards")
 
@@ -721,8 +747,8 @@ private fun ProjectScreen(state: LoadState<ProjectData>, onBack: () -> Unit) {
             ) {
                 item { ProjectHero(state.value.project, state.value.branches.size) }
                 when (tab) {
-                    0 -> issueItems(state.value.issues, "This project has no open issues.", onClick = {})
-                    1 -> mrItems(state.value.mergeRequests)
+                    0 -> issueItems(state.value.issues, "This project has no open issues.", onIssueClick)
+                    1 -> mrItems(state.value.mergeRequests, onMergeRequestClick)
                     2 -> items(state.value.commits, key = { it.id }) { CommitRow(it) }
                     3 -> boardItems(state.value.boards)
                 }
@@ -750,8 +776,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.boardItems(boards: Li
 private fun GroupScreen(
     state: LoadState<GroupData>,
     onBack: () -> Unit,
-    onProjectClick: (GitLabProject) -> Unit
+    onProjectClick: (GitLabProject) -> Unit,
+    onGroupClick: (GitLabGroup) -> Unit,
+    onIssueClick: (GitLabIssue) -> Unit
 ) {
+    var tab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Projects", "Subgroups", "Issues")
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -762,6 +793,27 @@ private fun GroupScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            NavigationBar {
+                tabs.forEachIndexed { index, label ->
+                    NavigationBarItem(
+                        selected = tab == index,
+                        onClick = { tab = index },
+                        icon = {
+                            Icon(
+                                imageVector = when (index) {
+                                    0 -> Icons.Outlined.Folder
+                                    1 -> Icons.Outlined.AccountTree
+                                    else -> Icons.Outlined.TaskAlt
+                                },
+                                contentDescription = label
+                            )
+                        },
+                        label = { Text(label) }
+                    )
+                }
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -782,7 +834,11 @@ private fun GroupScreen(
                             meta = state.value.group.fullPath
                         )
                     }
-                    projectItems(state.value.projects, onProjectClick)
+                    when (tab) {
+                        0 -> projectItems(state.value.projects, onProjectClick)
+                        1 -> groupItems(state.value.subgroups, onGroupClick)
+                        2 -> issueItems(state.value.issues, "This group has no open issues.", onIssueClick)
+                    }
                 }
             }
         }

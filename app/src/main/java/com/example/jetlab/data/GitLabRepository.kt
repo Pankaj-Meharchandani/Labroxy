@@ -15,6 +15,8 @@ class GitLabRepository(
     suspend fun events(): List<GitLabEvent> = api.events()
     suspend fun project(projectId: Long): GitLabProject = api.project(projectId)
     suspend fun groupProjects(groupId: Long): List<GitLabProject> = api.groupProjects(groupId)
+    suspend fun subgroups(groupId: Long): List<GitLabGroup> = api.subgroups(groupId)
+    suspend fun groupIssues(groupId: Long): List<GitLabIssue> = api.groupIssues(groupId)
     suspend fun issue(projectId: Long, issueIid: Long): GitLabIssue = api.issue(projectId, issueIid)
     suspend fun mergeRequest(projectId: Long, mergeRequestIid: Long): GitLabMergeRequest = api.mergeRequest(projectId, mergeRequestIid)
     suspend fun issueNotes(projectId: Long, issueIid: Long): List<GitLabNote> = api.issueNotes(projectId, issueIid)

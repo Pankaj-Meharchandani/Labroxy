@@ -113,6 +113,23 @@ class GitLabApi(
             parameter("per_page", 100)
         }
 
+    suspend fun subgroups(groupId: Long): List<GitLabGroup> =
+        getList("groups/$groupId/subgroups") {
+            parameter("all_available", true)
+            parameter("order_by", "name")
+            parameter("sort", "asc")
+            parameter("per_page", 100)
+        }
+
+    suspend fun groupIssues(groupId: Long): List<GitLabIssue> =
+        getList("groups/$groupId/issues") {
+            parameter("scope", "all")
+            parameter("state", "opened")
+            parameter("order_by", "updated_at")
+            parameter("sort", "desc")
+            parameter("per_page", 100)
+        }
+
     suspend fun issue(projectId: Long, issueIid: Long): GitLabIssue =
         get("projects/$projectId/issues/$issueIid")
 

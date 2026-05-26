@@ -65,7 +65,9 @@ data class WorkDetailData(
 
 data class GroupData(
     val group: GitLabGroup,
-    val projects: List<GitLabProject>
+    val projects: List<GitLabProject>,
+    val subgroups: List<GitLabGroup> = emptyList(),
+    val issues: List<GitLabIssue> = emptyList()
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -208,7 +210,13 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
             val active = session.value
             _group.value = LoadState.Loading
             runCatching {
-                GroupData(group, GitLabRepository(active).groupProjects(group.id))
+                val repo = GitLabRepository(active)
+                GroupData(
+                    group = group,
+                    projects = repo.groupProjects(group.id),
+                    subgroups = runCatching { repo.subgroups(group.id) }.getOrDefault(emptyList()),
+                    issues = runCatching { repo.groupIssues(group.id) }.getOrDefault(emptyList())
+                )
             }.fold(
                 onSuccess = { _group.value = LoadState.Success(it) },
                 onFailure = { _group.value = LoadState.Error(it.toFriendlyMessage()) }
