@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -49,6 +50,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -65,6 +67,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Switch
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,6 +89,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.jetlab.data.AppSettings
 import com.example.jetlab.data.GitLabBoard
 import com.example.jetlab.data.GitLabCommit
 import com.example.jetlab.data.GitLabEvent
@@ -94,6 +98,7 @@ import com.example.jetlab.data.GitLabIssue
 import com.example.jetlab.data.GitLabMergeRequest
 import com.example.jetlab.data.GitLabProject
 import com.example.jetlab.data.GitLabTodo
+import com.example.jetlab.ui.theme.JetLabTheme
 import kotlinx.coroutines.launch
 
 private enum class Screen { Loading, SignIn, Dashboard, Project, Group, Detail }
@@ -106,7 +111,8 @@ private enum class WorkSection(val label: String, val icon: ImageVector) {
     Assigned("Assigned", Icons.Outlined.Tag),
     MergeRequests("Merge requests", Icons.AutoMirrored.Outlined.MergeType),
     Todos("To-Do List", Icons.Outlined.TaskAlt),
-    Notifications("Notifications", Icons.Outlined.History)
+    Notifications("Notifications", Icons.Outlined.History),
+    Settings("Settings", Icons.Outlined.Settings)
 }
 
 @Composable
@@ -117,6 +123,7 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
     val group by viewModel.group.collectAsState()
     val detail by viewModel.detail.collectAsState()
     val query by viewModel.searchQuery.collectAsState()
+    val settings by viewModel.settings.collectAsState()
     var screen by remember { mutableStateOf(Screen.Loading) }
     var section by remember { mutableStateOf(WorkSection.Home) }
 
@@ -137,6 +144,7 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
         }
     }
 
+    JetLabTheme(settings.themeMode) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         AnimatedContent(targetState = screen, label = "screen") { target ->
             when (target) {
@@ -179,6 +187,9 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
                         viewModel.loadEvent(it)
                         screen = Screen.Detail
                     },
+                    settings = settings,
+                    onThemeModeChange = viewModel::setThemeMode,
+                    onPushNotificationsChange = viewModel::setPushNotifications,
                     onSignOut = viewModel::signOut
                 )
                 Screen.Project -> ProjectScreen(
@@ -201,6 +212,7 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
                 )
             }
         }
+    }
     }
 }
 
@@ -286,6 +298,9 @@ private fun DashboardScreen(
     onMergeRequestClick: (GitLabMergeRequest) -> Unit,
     onTodoClick: (GitLabTodo) -> Unit,
     onEventClick: (GitLabEvent) -> Unit,
+    settings: AppSettings,
+    onThemeModeChange: (String) -> Unit,
+    onPushNotificationsChange: (Boolean) -> Unit,
     onSignOut: () -> Unit
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -333,7 +348,7 @@ private fun DashboardScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                if (section in listOf(WorkSection.Projects, WorkSection.Groups, WorkSection.WorkItems)) {
+                if (section !in listOf(WorkSection.Home, WorkSection.Settings)) {
                     item {
                         OutlinedTextField(
                             value = query,
@@ -352,13 +367,14 @@ private fun DashboardScreen(
                         val data = state.value
                         when (section) {
                             WorkSection.Home -> homeItems(data, onSectionChange)
-                            WorkSection.Projects -> projectItems(data.projects, onProjectClick)
-                            WorkSection.Groups -> groupItems(data.groups, onGroupClick)
-                            WorkSection.WorkItems -> issueItems(data.workItems, "No open work items found.", onIssueClick)
-                            WorkSection.Assigned -> issueItems(data.assignedWorkItems, "Nothing is assigned to you.", onIssueClick)
-                            WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests, onMergeRequestClick)
-                            WorkSection.Todos -> todoItems(data.todos, onTodoClick)
-                            WorkSection.Notifications -> eventItems(data.events, onEventClick)
+                            WorkSection.Projects -> projectItems(data.projects.filteredProjects(query), onProjectClick)
+                            WorkSection.Groups -> groupItems(data.groups.filteredGroups(query), onGroupClick)
+                            WorkSection.WorkItems -> issueItems(data.workItems.filteredIssues(query), "No open work items found.", onIssueClick)
+                            WorkSection.Assigned -> issueItems(data.assignedWorkItems.filteredIssues(query), "Nothing is assigned to you.", onIssueClick)
+                            WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests.filteredMergeRequests(query), onMergeRequestClick)
+                            WorkSection.Todos -> todoItems(data.todos.filteredTodos(query), onTodoClick)
+                            WorkSection.Notifications -> eventItems(data.events.filteredEvents(query), onEventClick)
+                            WorkSection.Settings -> settingsItems(settings, onThemeModeChange, onPushNotificationsChange)
                         }
                     }
                 }
@@ -375,7 +391,7 @@ private fun WorkDrawer(
     onSignOut: () -> Unit
 ) {
     ModalDrawerSheet(
-        drawerContainerColor = Color(0xFF202027),
+        drawerContainerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.width(292.dp)
     ) {
         Column(
@@ -386,7 +402,7 @@ private fun WorkDrawer(
         ) {
             Text(
                 "Your work",
-                color = Color(0xFFD7E3F3),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
             )
@@ -400,14 +416,14 @@ private fun WorkDrawer(
                     modifier = Modifier.height(46.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = Color(0xFF34445D),
+                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                         unselectedContainerColor = Color.Transparent,
-                        selectedIconColor = Color.White,
-                        unselectedIconColor = Color(0xFFE6E1E5),
-                        selectedTextColor = Color.White,
-                        unselectedTextColor = Color(0xFFE6E1E5),
-                        selectedBadgeColor = Color.White,
-                        unselectedBadgeColor = Color(0xFFE6E1E5)
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+                        selectedBadgeColor = MaterialTheme.colorScheme.primary,
+                        unselectedBadgeColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }
@@ -421,8 +437,8 @@ private fun WorkDrawer(
                 shape = RoundedCornerShape(8.dp),
                 colors = NavigationDrawerItemDefaults.colors(
                     unselectedContainerColor = Color.Transparent,
-                    unselectedIconColor = Color(0xFFE6E1E5),
-                    unselectedTextColor = Color(0xFFE6E1E5)
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -441,6 +457,7 @@ private fun DrawerBadge(section: WorkSection, state: LoadState<DashboardData>) {
         WorkSection.MergeRequests -> data.assignedMergeRequests.size
         WorkSection.Todos -> data.todos.size
         WorkSection.Notifications -> data.events.size
+        WorkSection.Settings -> null
     } ?: return
     if (count > 0) {
         Text("$count", fontWeight = FontWeight.Bold)
@@ -459,6 +476,96 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
     item { HomeNavRow(WorkSection.MergeRequests, data.assignedMergeRequests.size, onSectionChange) }
     item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
     item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
+}
+
+private fun List<GitLabProject>.filteredProjects(query: String): List<GitLabProject> =
+    if (query.isBlank()) this else filter {
+        it.name.contains(query, ignoreCase = true) ||
+            it.pathWithNamespace.contains(query, ignoreCase = true) ||
+            it.description.orEmpty().contains(query, ignoreCase = true)
+    }
+
+private fun List<GitLabGroup>.filteredGroups(query: String): List<GitLabGroup> =
+    if (query.isBlank()) this else filter {
+        it.name.contains(query, ignoreCase = true) ||
+            it.fullPath.contains(query, ignoreCase = true) ||
+            it.description.orEmpty().contains(query, ignoreCase = true)
+    }
+
+private fun List<GitLabIssue>.filteredIssues(query: String): List<GitLabIssue> =
+    if (query.isBlank()) this else filter {
+        it.title.contains(query, ignoreCase = true) ||
+            it.state.contains(query, ignoreCase = true) ||
+            it.labels.any { label -> label.contains(query, ignoreCase = true) } ||
+            it.author?.username.orEmpty().contains(query, ignoreCase = true)
+    }
+
+private fun List<GitLabMergeRequest>.filteredMergeRequests(query: String): List<GitLabMergeRequest> =
+    if (query.isBlank()) this else filter {
+        it.title.contains(query, ignoreCase = true) ||
+            it.state.contains(query, ignoreCase = true) ||
+            it.sourceBranch.contains(query, ignoreCase = true) ||
+            it.targetBranch.contains(query, ignoreCase = true) ||
+            it.author?.username.orEmpty().contains(query, ignoreCase = true)
+    }
+
+private fun List<GitLabTodo>.filteredTodos(query: String): List<GitLabTodo> =
+    if (query.isBlank()) this else filter {
+        it.target?.title.orEmpty().contains(query, ignoreCase = true) ||
+            it.body.orEmpty().contains(query, ignoreCase = true) ||
+            it.targetType.contains(query, ignoreCase = true) ||
+            it.project?.name.orEmpty().contains(query, ignoreCase = true)
+    }
+
+private fun List<GitLabEvent>.filteredEvents(query: String): List<GitLabEvent> =
+    if (query.isBlank()) this else filter {
+        it.targetTitle.orEmpty().contains(query, ignoreCase = true) ||
+            it.targetType.orEmpty().contains(query, ignoreCase = true) ||
+            it.displayAction.contains(query, ignoreCase = true) ||
+            it.author?.username.orEmpty().contains(query, ignoreCase = true)
+    }
+
+private fun androidx.compose.foundation.lazy.LazyListScope.settingsItems(
+    settings: AppSettings,
+    onThemeModeChange: (String) -> Unit,
+    onPushNotificationsChange: (Boolean) -> Unit
+) {
+    item {
+        Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("Theme", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("system" to "System", "light" to "Light", "dark" to "Dark").forEach { (value, label) ->
+                        FilterChip(
+                            selected = settings.themeMode == value,
+                            onClick = { onThemeModeChange(value) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+    item {
+        Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Push notifications", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Allow JetLab to prepare notification delivery for GitLab updates.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = settings.pushNotifications,
+                    onCheckedChange = onPushNotificationsChange
+                )
+            }
+        }
+    }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.projectItems(

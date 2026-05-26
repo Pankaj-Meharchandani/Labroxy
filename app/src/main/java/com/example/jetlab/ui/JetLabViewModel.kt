@@ -16,17 +16,14 @@ import com.example.jetlab.data.GitLabRepository
 import com.example.jetlab.data.GitLabSession
 import com.example.jetlab.data.GitLabTodo
 import com.example.jetlab.data.GitLabUser
+import com.example.jetlab.data.AppSettings
 import com.example.jetlab.data.SessionStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
@@ -71,7 +68,7 @@ data class GroupData(
     val projects: List<GitLabProject>
 )
 
-@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class JetLabViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionStore = SessionStore(application)
 
@@ -83,13 +80,15 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
 
     private val query = MutableStateFlow("")
     val searchQuery: StateFlow<String> = query.asStateFlow()
+    val settings: StateFlow<AppSettings> = sessionStore.settings.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        AppSettings()
+    )
 
     val dashboard: StateFlow<LoadState<DashboardData>> =
-        combine(session, query.debounce(250).distinctUntilChanged()) { activeSession, search ->
-            activeSession to search
-        }
-            .distinctUntilChanged()
-            .flatMapLatest { (active, search) ->
+        session
+            .flatMapLatest { active ->
                 flow {
                     if (!active.isReady) {
                         emit(
@@ -123,13 +122,13 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
                             data = data.copy(assignedMergeRequests = runCatching { GitLabRepository(active).assignedMergeRequests(data.user.id) }.getOrDefault(emptyList()))
                             emit(LoadState.Success(data))
 
-                            data = data.copy(groups = runCatching { GitLabRepository(active).groups(search) }.getOrDefault(emptyList()))
+                            data = data.copy(groups = runCatching { GitLabRepository(active).groups("") }.getOrDefault(emptyList()))
                             emit(LoadState.Success(data))
 
-                            data = data.copy(workItems = runCatching { GitLabRepository(active).workItems(search) }.getOrDefault(emptyList()))
+                            data = data.copy(workItems = runCatching { GitLabRepository(active).workItems("") }.getOrDefault(emptyList()))
                             emit(LoadState.Success(data))
 
-                            data = data.copy(projects = runCatching { GitLabRepository(active).projects(search) }.getOrDefault(emptyList()))
+                            data = data.copy(projects = runCatching { GitLabRepository(active).projects("") }.getOrDefault(emptyList()))
                             emit(LoadState.Success(data))
                         },
                         onFailure = { emit(LoadState.Error(it.toFriendlyMessage())) }
@@ -150,6 +149,18 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setSearchQuery(value: String) {
         query.value = value
+    }
+
+    fun setThemeMode(value: String) {
+        viewModelScope.launch {
+            sessionStore.saveThemeMode(value)
+        }
+    }
+
+    fun setPushNotifications(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionStore.savePushNotifications(enabled)
+        }
     }
 
     fun saveSession(host: String, token: String) {
