@@ -20,7 +20,9 @@ private val JetLabLightColors = lightColorScheme(
     surfaceVariant = Color(0xFFEAE5DD),
     onSurfaceVariant = Color(0xFF5D5751),
     outline = Color(0xFF81766E),
-    error = Color(0xFFBA1A1A)
+    error = Color(0xFFBA1A1A),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002)
 )
 
 private val JetLabDarkColors = darkColorScheme(
@@ -36,7 +38,9 @@ private val JetLabDarkColors = darkColorScheme(
     surfaceVariant = Color(0xFF46464D),
     onSurfaceVariant = Color(0xFFC8C4CC),
     outline = Color(0xFF938F99),
-    error = Color(0xFFFFB4AB)
+    error = Color(0xFFFFB4AB),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6)
 )
 
 @Composable

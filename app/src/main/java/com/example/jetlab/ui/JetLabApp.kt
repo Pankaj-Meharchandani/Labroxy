@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -552,15 +553,20 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsItems(
     onPushNotificationsChange: (Boolean) -> Unit
 ) {
     item {
-        Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("Theme", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     listOf("system" to "System", "light" to "Light", "dark" to "Dark").forEach { (value, label) ->
                         FilterChip(
                             selected = settings.themeMode == value,
                             onClick = { onThemeModeChange(value) },
-                            label = { Text(label) }
+                            label = { Text(label, maxLines = 1) },
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -568,9 +574,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsItems(
         }
     }
     item {
-        Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
             Row(
-                Modifier.padding(16.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -881,11 +893,24 @@ private fun WorkDetailScreen(
                 is LoadState.Success -> {
                     val data = state.value
                     item {
-                        Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7F1))) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(data.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Text(
+                                    data.title,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                                 Text(data.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     MetricChip(Icons.Outlined.Tag, data.state)
                                     data.labels.forEach { MetricChip(Icons.Outlined.Tag, it) }
                                 }
@@ -997,12 +1022,32 @@ private fun ProjectCard(project: GitLabProject, onClick: () -> Unit) {
 
 @Composable
 private fun ProjectHero(project: GitLabProject, branchCount: Int) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7F1))) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(project.pathWithNamespace, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-            Text(project.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                project.pathWithNamespace,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                project.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
             project.description?.takeIf { it.isNotBlank() }?.let { Text(it) }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 MetricChip(Icons.Outlined.TaskAlt, "${project.openIssuesCount} issues")
                 MetricChip(Icons.AutoMirrored.Outlined.MergeType, "$branchCount branches")
                 MetricChip(Icons.Outlined.Star, "${project.starCount} stars")
@@ -1050,8 +1095,8 @@ private fun ListCard(icon: ImageVector, title: String, meta: String, onClick: ((
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
             Spacer(Modifier.width(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(title, fontWeight = FontWeight.SemiBold)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(title, fontWeight = FontWeight.SemiBold, overflow = TextOverflow.Ellipsis)
                 Text(meta, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 content()
             }
@@ -1084,7 +1129,12 @@ private fun ProjectAvatar(name: String) {
 
 @Composable
 private fun MetricChip(icon: ImageVector, text: String) {
-    AssistChip(onClick = {}, leadingIcon = { Icon(icon, null, Modifier.size(16.dp)) }, label = { Text(text) })
+    AssistChip(
+        onClick = {},
+        leadingIcon = { Icon(icon, null, Modifier.size(16.dp)) },
+        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        modifier = Modifier.widthIn(min = 0.dp, max = 180.dp)
+    )
 }
 
 @Composable
@@ -1097,11 +1147,15 @@ private fun LoadingBlock(text: String) {
 
 @Composable
 private fun ErrorBlock(message: String) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFECEB))) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
+            Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer)
             Spacer(Modifier.width(10.dp))
-            Text(message)
+            Text(message, color = MaterialTheme.colorScheme.onErrorContainer)
         }
     }
 }
