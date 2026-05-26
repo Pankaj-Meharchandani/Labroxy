@@ -99,7 +99,7 @@ import com.example.jetlab.data.GitLabIssue
 import com.example.jetlab.data.GitLabMergeRequest
 import com.example.jetlab.data.GitLabProject
 import com.example.jetlab.data.GitLabTodo
-import com.example.jetlab.ui.theme.JetLabTheme
+import com.example.jetlab.ui.theme.LabroxyTheme
 import kotlinx.coroutines.launch
 
 private enum class Screen { Loading, SignIn, Dashboard, Project, Group, Detail }
@@ -117,7 +117,7 @@ private enum class WorkSection(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
+fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
     val session by viewModel.session.collectAsState()
     val dashboard by viewModel.dashboard.collectAsState()
     val project by viewModel.project.collectAsState()
@@ -145,7 +145,7 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
         }
     }
 
-    JetLabTheme(settings.themeMode) {
+    LabroxyTheme(settings.themeMode) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         AnimatedContent(targetState = screen, label = "screen") { target ->
             when (target) {
@@ -268,7 +268,7 @@ private fun SignInScreen(defaultHost: String, onConnect: (String, String) -> Uni
             modifier = Modifier.size(48.dp)
         )
         Spacer(Modifier.height(18.dp))
-        Text("JetLab", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Text("Labroxy", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Text(
             "A calm, fast GitLab cockpit for projects, groups, work items, reviews, and notifications.",
             style = MaterialTheme.typography.bodyLarge,
@@ -588,7 +588,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsItems(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Push notifications", fontWeight = FontWeight.Bold)
                     Text(
-                        "Allow JetLab to prepare notification delivery for GitLab updates.",
+                        "Allow Labroxy to prepare notification delivery for GitLab updates.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

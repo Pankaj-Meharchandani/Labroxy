@@ -73,7 +73,7 @@ data class GroupData(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class JetLabViewModel(application: Application) : AndroidViewModel(application) {
+class LabroxyViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionStore = SessionStore(application)
 
     val session: StateFlow<GitLabSession> = sessionStore.session.stateIn(

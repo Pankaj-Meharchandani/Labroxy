@@ -7,7 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 
-private val JetLabLightColors = lightColorScheme(
+private val LabroxyLightColors = lightColorScheme(
     primary = Color(0xFFFC6D26),
     onPrimary = Color.White,
     secondary = Color(0xFF2F6F73),
@@ -25,7 +25,7 @@ private val JetLabLightColors = lightColorScheme(
     onErrorContainer = Color(0xFF410002)
 )
 
-private val JetLabDarkColors = darkColorScheme(
+private val LabroxyDarkColors = darkColorScheme(
     primary = Color(0xFFFF9B63),
     onPrimary = Color(0xFF4C1D00),
     secondary = Color(0xFF80D0CF),
@@ -44,14 +44,14 @@ private val JetLabDarkColors = darkColorScheme(
 )
 
 @Composable
-fun JetLabTheme(themeMode: String = "system", content: @Composable () -> Unit) {
+fun LabroxyTheme(themeMode: String = "system", content: @Composable () -> Unit) {
     val dark = when (themeMode) {
         "dark" -> true
         "light" -> false
         else -> isSystemInDarkTheme()
     }
     MaterialTheme(
-        colorScheme = if (dark) JetLabDarkColors else JetLabLightColors,
+        colorScheme = if (dark) LabroxyDarkColors else LabroxyLightColors,
         typography = MaterialTheme.typography,
         content = content
     )

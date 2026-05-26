@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "JetLab"
+rootProject.name = "Labroxy"
 include(":app")

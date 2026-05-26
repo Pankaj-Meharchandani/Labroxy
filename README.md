@@ -1,6 +1,6 @@
-# JetLab
+# Labroxy
 
-JetLab is a Jetpack Compose GitLab client focused on a fast, pleasant project workflow.
+Labroxy is a Jetpack Compose GitLab client focused on a fast, pleasant project workflow.
 
 ## What it does
 
