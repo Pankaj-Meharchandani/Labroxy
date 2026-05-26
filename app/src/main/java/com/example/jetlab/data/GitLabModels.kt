@@ -20,8 +20,8 @@ data class GitLabNamespace(
 
 @Serializable
 data class GitLabProject(
-    val id: Long,
-    val name: String,
+    val id: Long = 0,
+    val name: String = "",
     @SerialName("path_with_namespace") val pathWithNamespace: String = name,
     val description: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null,
@@ -48,10 +48,10 @@ data class GitLabGroup(
 
 @Serializable
 data class GitLabIssue(
-    val id: Long,
-    val iid: Long,
-    val title: String,
-    val state: String,
+    val id: Long = 0,
+    val iid: Long = 0,
+    val title: String = "",
+    val state: String = "",
     @SerialName("project_id") val projectId: Long? = null,
     val labels: List<String> = emptyList(),
     @SerialName("web_url") val webUrl: String? = null,
@@ -84,10 +84,10 @@ data class GitLabTodo(
 
 @Serializable
 data class GitLabMergeRequest(
-    val id: Long,
-    val iid: Long,
-    val title: String,
-    val state: String,
+    val id: Long = 0,
+    val iid: Long = 0,
+    val title: String = "",
+    val state: String = "",
     @SerialName("project_id") val projectId: Long? = null,
     @SerialName("source_branch") val sourceBranch: String,
     @SerialName("target_branch") val targetBranch: String,

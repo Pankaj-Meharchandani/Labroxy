@@ -44,16 +44,15 @@ class GitLabApi(
 
     suspend fun projects(query: String): List<GitLabProject> =
         getList("projects") {
-            parameter("order_by", if (query.isBlank()) "name" else "similarity")
-            parameter("sort", "asc")
-            parameter("simple", false)
+            parameter("membership", true)
+            parameter("order_by", if (query.isBlank()) "last_activity_at" else "similarity")
+            parameter("sort", "desc")
             parameter("per_page", 100)
             if (query.isNotBlank()) parameter("search", query)
         }
 
     suspend fun groups(query: String): List<GitLabGroup> =
         getList("groups") {
-            parameter("all_available", true)
             parameter("order_by", "name")
             parameter("sort", "asc")
             parameter("per_page", 100)
@@ -78,6 +77,7 @@ class GitLabApi(
 
     suspend fun workItems(query: String): List<GitLabIssue> =
         getList("issues") {
+            parameter("membership", true)
             parameter("scope", "all")
             parameter("state", "opened")
             parameter("order_by", "updated_at")
@@ -115,7 +115,6 @@ class GitLabApi(
 
     suspend fun subgroups(groupId: Long): List<GitLabGroup> =
         getList("groups/$groupId/subgroups") {
-            parameter("all_available", true)
             parameter("order_by", "name")
             parameter("sort", "asc")
             parameter("per_page", 100)
@@ -123,6 +122,7 @@ class GitLabApi(
 
     suspend fun groupIssues(groupId: Long): List<GitLabIssue> =
         getList("groups/$groupId/issues") {
+            parameter("membership", true)
             parameter("scope", "all")
             parameter("state", "opened")
             parameter("order_by", "updated_at")
