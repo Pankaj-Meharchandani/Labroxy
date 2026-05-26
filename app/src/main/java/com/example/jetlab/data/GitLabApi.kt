@@ -27,9 +27,9 @@ class GitLabApi(
             })
         }
         install(HttpTimeout) {
-            requestTimeoutMillis = 20_000
-            connectTimeoutMillis = 10_000
-            socketTimeoutMillis = 20_000
+            requestTimeoutMillis = 45_000
+            connectTimeoutMillis = 30_000
+            socketTimeoutMillis = 45_000
         }
         install(DefaultRequest) {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())
@@ -39,19 +39,68 @@ class GitLabApi(
     suspend fun currentUser(): GitLabUser = get("user")
 
     suspend fun projects(query: String): List<GitLabProject> =
-        get("projects") {
-            parameter("membership", true)
-            parameter("order_by", "last_activity_at")
-            parameter("sort", "desc")
+        getList("projects") {
+            parameter("order_by", if (query.isBlank()) "name" else "similarity")
+            parameter("sort", "asc")
             parameter("simple", false)
-            parameter("per_page", 40)
+            parameter("per_page", 100)
             if (query.isNotBlank()) parameter("search", query)
+        }
+
+    suspend fun groups(query: String): List<GitLabGroup> =
+        getList("groups") {
+            parameter("all_available", true)
+            parameter("order_by", "name")
+            parameter("sort", "asc")
+            parameter("per_page", 100)
+            if (query.isNotBlank()) parameter("search", query)
+        }
+
+    suspend fun todos(): List<GitLabTodo> =
+        getList("todos") {
+            parameter("state", "pending")
+            parameter("per_page", 100)
+        }
+
+    suspend fun assignedIssues(userId: Long): List<GitLabIssue> =
+        getList("issues") {
+            parameter("scope", "all")
+            parameter("state", "opened")
+            parameter("assignee_id", userId)
+            parameter("order_by", "updated_at")
+            parameter("sort", "desc")
+            parameter("per_page", 100)
+        }
+
+    suspend fun workItems(query: String): List<GitLabIssue> =
+        getList("issues") {
+            parameter("scope", "all")
+            parameter("state", "opened")
+            parameter("order_by", "updated_at")
+            parameter("sort", "desc")
+            parameter("per_page", 100)
+            if (query.isNotBlank()) parameter("search", query)
+        }
+
+    suspend fun assignedMergeRequests(userId: Long): List<GitLabMergeRequest> =
+        getList("merge_requests") {
+            parameter("scope", "all")
+            parameter("state", "opened")
+            parameter("assignee_id", userId)
+            parameter("order_by", "updated_at")
+            parameter("sort", "desc")
+            parameter("per_page", 100)
+        }
+
+    suspend fun events(): List<GitLabEvent> =
+        getList("events") {
+            parameter("per_page", 50)
         }
 
     suspend fun project(projectId: Long): GitLabProject = get("projects/$projectId")
 
     suspend fun issues(projectId: Long): List<GitLabIssue> =
-        get("projects/$projectId/issues") {
+        getList("projects/$projectId/issues") {
             parameter("state", "opened")
             parameter("order_by", "updated_at")
             parameter("sort", "desc")
@@ -59,7 +108,7 @@ class GitLabApi(
         }
 
     suspend fun mergeRequests(projectId: Long): List<GitLabMergeRequest> =
-        get("projects/$projectId/merge_requests") {
+        getList("projects/$projectId/merge_requests") {
             parameter("state", "opened")
             parameter("order_by", "updated_at")
             parameter("sort", "desc")
@@ -67,12 +116,17 @@ class GitLabApi(
         }
 
     suspend fun commits(projectId: Long): List<GitLabCommit> =
-        get("projects/$projectId/repository/commits") {
+        getList("projects/$projectId/repository/commits") {
             parameter("per_page", 30)
         }
 
     suspend fun branches(projectId: Long): List<GitLabBranch> =
-        get("projects/$projectId/repository/branches") {
+        getList("projects/$projectId/repository/branches") {
+            parameter("per_page", 50)
+        }
+
+    suspend fun boards(projectId: Long): List<GitLabBoard> =
+        getList("projects/$projectId/boards") {
             parameter("per_page", 50)
         }
 
@@ -86,5 +140,32 @@ class GitLabApi(
             header("PRIVATE-TOKEN", tokenProvider())
             block()
         }.body()
+    }
+
+    private suspend inline fun <reified T> getList(
+        path: String,
+        crossinline block: HttpRequestBuilder.() -> Unit = {}
+    ): List<T> {
+        val normalizedHost = host.trim().removeSuffix("/")
+        val url = "$normalizedHost/api/v4/$path"
+        val items = mutableListOf<T>()
+        var page = 1
+
+        do {
+            try {
+                val response = client.get(url) {
+                    header("PRIVATE-TOKEN", tokenProvider())
+                    block()
+                    parameter("page", page)
+                }
+                items += response.body<List<T>>()
+                page = response.headers["X-Next-Page"]?.toIntOrNull() ?: 0
+            } catch (error: Throwable) {
+                if (items.isEmpty()) throw error
+                page = 0
+            }
+        } while (page > 0)
+
+        return items
     }
 }

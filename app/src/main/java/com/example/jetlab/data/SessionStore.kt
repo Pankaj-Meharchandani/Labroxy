@@ -11,9 +11,10 @@ private val Context.dataStore by preferencesDataStore("jetlab_session")
 
 data class GitLabSession(
     val host: String = "https://gitlab.com",
-    val token: String = ""
+    val token: String = "",
+    val isLoaded: Boolean = false
 ) {
-    val isReady: Boolean get() = host.isNotBlank() && token.isNotBlank()
+    val isReady: Boolean get() = isLoaded && host.isNotBlank() && token.isNotBlank()
 }
 
 class SessionStore(private val context: Context) {
@@ -23,7 +24,8 @@ class SessionStore(private val context: Context) {
     val session: Flow<GitLabSession> = context.dataStore.data.map { prefs ->
         GitLabSession(
             host = prefs[hostKey] ?: "https://gitlab.com",
-            token = prefs[tokenKey] ?: ""
+            token = prefs[tokenKey] ?: "",
+            isLoaded = true
         )
     }
 

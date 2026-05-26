@@ -2,6 +2,7 @@
 
 package com.example.jetlab.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -33,7 +34,10 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Tag
@@ -44,17 +48,23 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -62,6 +72,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,12 +85,28 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.jetlab.data.GitLabBoard
 import com.example.jetlab.data.GitLabCommit
+import com.example.jetlab.data.GitLabEvent
+import com.example.jetlab.data.GitLabGroup
 import com.example.jetlab.data.GitLabIssue
 import com.example.jetlab.data.GitLabMergeRequest
 import com.example.jetlab.data.GitLabProject
+import com.example.jetlab.data.GitLabTodo
+import kotlinx.coroutines.launch
 
-private enum class Screen { SignIn, Dashboard, Project }
+private enum class Screen { Loading, SignIn, Dashboard, Project }
+
+private enum class WorkSection(val label: String, val icon: ImageVector) {
+    Home("Home", Icons.Outlined.Home),
+    Projects("Projects", Icons.Outlined.Folder),
+    Groups("Groups", Icons.Outlined.AccountTree),
+    WorkItems("Work items", Icons.Outlined.TaskAlt),
+    Assigned("Assigned", Icons.Outlined.Tag),
+    MergeRequests("Merge requests", Icons.AutoMirrored.Outlined.MergeType),
+    Todos("To-Do List", Icons.Outlined.TaskAlt),
+    Notifications("Notifications", Icons.Outlined.History)
+}
 
 @Composable
 fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
@@ -87,22 +114,39 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
     val dashboard by viewModel.dashboard.collectAsState()
     val project by viewModel.project.collectAsState()
     val query by viewModel.searchQuery.collectAsState()
-    var screen by remember { mutableStateOf(if (session.isReady) Screen.Dashboard else Screen.SignIn) }
+    var screen by remember { mutableStateOf(Screen.Loading) }
+    var section by remember { mutableStateOf(WorkSection.Home) }
 
-    LaunchedEffect(session.isReady) {
-        screen = if (session.isReady) Screen.Dashboard else Screen.SignIn
+    LaunchedEffect(session.isLoaded, session.isReady) {
+        screen = when {
+            !session.isLoaded -> Screen.Loading
+            session.isReady -> Screen.Dashboard
+            else -> Screen.SignIn
+        }
+        if (session.isLoaded && !session.isReady) section = WorkSection.Home
+    }
+
+    BackHandler(enabled = screen == Screen.Project || section != WorkSection.Home) {
+        if (screen == Screen.Project) {
+            screen = Screen.Dashboard
+        } else {
+            section = WorkSection.Home
+        }
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         AnimatedContent(targetState = screen, label = "screen") { target ->
             when (target) {
+                Screen.Loading -> LoadingSessionScreen()
                 Screen.SignIn -> SignInScreen(
                     defaultHost = session.host,
                     onConnect = viewModel::saveSession
                 )
                 Screen.Dashboard -> DashboardScreen(
                     state = dashboard,
+                    section = section,
                     query = query,
+                    onSectionChange = { section = it },
                     onQueryChange = viewModel::setSearchQuery,
                     onProjectClick = {
                         viewModel.loadProject(it.id)
@@ -116,6 +160,13 @@ fun JetLabApp(viewModel: JetLabViewModel = viewModel()) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun LoadingSessionScreen() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
     }
 }
 
@@ -144,7 +195,7 @@ private fun SignInScreen(defaultHost: String, onConnect: (String, String) -> Uni
         Spacer(Modifier.height(18.dp))
         Text("JetLab", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Text(
-            "A calm, fast GitLab cockpit for projects, reviews, issues, and recent code activity.",
+            "A calm, fast GitLab cockpit for projects, groups, work items, reviews, and notifications.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -184,53 +235,276 @@ private fun SignInScreen(defaultHost: String, onConnect: (String, String) -> Uni
 @Composable
 private fun DashboardScreen(
     state: LoadState<DashboardData>,
+    section: WorkSection,
     query: String,
+    onSectionChange: (WorkSection) -> Unit,
     onQueryChange: (String) -> Unit,
     onProjectClick: (GitLabProject) -> Unit,
     onSignOut: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Projects", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    IconButton(onClick = onSignOut) {
-                        Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out")
-                    }
-                }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            WorkDrawer(
+                selected = section,
+                state = state,
+                onSectionChange = {
+                    onSectionChange(it)
+                    scope.launch { drawerState.close() }
+                },
+                onSignOut = onSignOut
             )
         }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            item {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    label = { Text("Search your GitLab projects") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(section.label, fontWeight = FontWeight.SemiBold) },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Outlined.Menu, contentDescription = "Open navigation")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { onSectionChange(WorkSection.Notifications) }) {
+                            Icon(Icons.Outlined.NotificationsNone, contentDescription = "Notifications")
+                        }
+                    }
                 )
             }
-            when (state) {
-                LoadState.Loading -> item { LoadingBlock("Loading GitLab workspace") }
-                is LoadState.Error -> item { ErrorBlock(state.message) }
-                is LoadState.Success -> {
-                    item { WelcomeBlock(state.value) }
-                    items(state.value.projects, key = { it.id }) { project ->
-                        ProjectCard(project, onClick = { onProjectClick(project) })
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                if (section in listOf(WorkSection.Projects, WorkSection.Groups, WorkSection.WorkItems)) {
+                    item {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = onQueryChange,
+                            label = { Text("Search ${section.label.lowercase()}") },
+                            leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
-                    if (state.value.projects.isEmpty()) {
-                        item { EmptyBlock("No projects matched that search.") }
+                }
+                when (state) {
+                    LoadState.Loading -> item { LoadingBlock("Loading GitLab workspace") }
+                    is LoadState.Error -> item { ErrorBlock(state.message) }
+                    is LoadState.Success -> {
+                        val data = state.value
+                        when (section) {
+                            WorkSection.Home -> homeItems(data, onSectionChange)
+                            WorkSection.Projects -> projectItems(data.projects, onProjectClick)
+                            WorkSection.Groups -> groupItems(data.groups)
+                            WorkSection.WorkItems -> issueItems(data.workItems, "No open work items found.")
+                            WorkSection.Assigned -> issueItems(data.assignedWorkItems, "Nothing is assigned to you.")
+                            WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests)
+                            WorkSection.Todos -> todoItems(data.todos)
+                            WorkSection.Notifications -> eventItems(data.events)
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun WorkDrawer(
+    selected: WorkSection,
+    state: LoadState<DashboardData>,
+    onSectionChange: (WorkSection) -> Unit,
+    onSignOut: () -> Unit
+) {
+    ModalDrawerSheet(
+        drawerContainerColor = Color(0xFF202027),
+        modifier = Modifier.width(292.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                "Your work",
+                color = Color(0xFFD7E3F3),
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            )
+            WorkSection.entries.filterNot { it == WorkSection.Notifications }.forEach { section ->
+                NavigationDrawerItem(
+                    selected = selected == section,
+                    onClick = { onSectionChange(section) },
+                    icon = { Icon(section.icon, contentDescription = null) },
+                    label = { Text(section.label, fontWeight = FontWeight.SemiBold) },
+                    badge = { DrawerBadge(section, state) },
+                    modifier = Modifier.height(46.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = Color(0xFF34445D),
+                        unselectedContainerColor = Color.Transparent,
+                        selectedIconColor = Color.White,
+                        unselectedIconColor = Color(0xFFE6E1E5),
+                        selectedTextColor = Color.White,
+                        unselectedTextColor = Color(0xFFE6E1E5),
+                        selectedBadgeColor = Color.White,
+                        unselectedBadgeColor = Color(0xFFE6E1E5)
+                    )
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            NavigationDrawerItem(
+                selected = false,
+                onClick = onSignOut,
+                icon = { Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null) },
+                label = { Text("Sign out", fontWeight = FontWeight.SemiBold) },
+                modifier = Modifier.height(46.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = NavigationDrawerItemDefaults.colors(
+                    unselectedContainerColor = Color.Transparent,
+                    unselectedIconColor = Color(0xFFE6E1E5),
+                    unselectedTextColor = Color(0xFFE6E1E5)
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun DrawerBadge(section: WorkSection, state: LoadState<DashboardData>) {
+    val data = (state as? LoadState.Success)?.value ?: return
+    val count = when (section) {
+        WorkSection.Home -> null
+        WorkSection.Projects -> data.projects.size
+        WorkSection.Groups -> data.groups.size
+        WorkSection.WorkItems -> data.workItems.size
+        WorkSection.Assigned -> data.assignedWorkItems.size
+        WorkSection.MergeRequests -> data.assignedMergeRequests.size
+        WorkSection.Todos -> data.todos.size
+        WorkSection.Notifications -> data.events.size
+    } ?: return
+    if (count > 0) {
+        Text("$count", fontWeight = FontWeight.Bold)
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
+    data: DashboardData,
+    onSectionChange: (WorkSection) -> Unit
+) {
+    item { WelcomeBlock(data) }
+    item { HomeNavRow(WorkSection.Projects, data.projects.size, onSectionChange) }
+    item { HomeNavRow(WorkSection.Groups, data.groups.size, onSectionChange) }
+    item { HomeNavRow(WorkSection.WorkItems, data.workItems.size, onSectionChange) }
+    item { HomeNavRow(WorkSection.Assigned, data.assignedWorkItems.size, onSectionChange) }
+    item { HomeNavRow(WorkSection.MergeRequests, data.assignedMergeRequests.size, onSectionChange) }
+    item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
+    item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.projectItems(
+    projects: List<GitLabProject>,
+    onProjectClick: (GitLabProject) -> Unit
+) {
+    if (projects.isEmpty()) {
+        item { EmptyBlock("No projects matched that search.") }
+    } else {
+        items(projects, key = { it.id }) { project ->
+            ProjectCard(project, onClick = { onProjectClick(project) })
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.groupItems(groups: List<GitLabGroup>) {
+    if (groups.isEmpty()) {
+        item { EmptyBlock("No groups matched that search.") }
+    } else {
+        items(groups, key = { it.id }) { group ->
+            ListCard(
+                icon = Icons.Outlined.AccountTree,
+                title = group.name,
+                meta = "${group.fullPath}${group.visibility?.let { " - $it" } ?: ""}"
+            ) {
+                group.description?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.issueItems(issues: List<GitLabIssue>, empty: String) {
+    if (issues.isEmpty()) {
+        item { EmptyBlock(empty) }
+    } else {
+        items(issues, key = { it.id }) { IssueRow(it) }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.mrItems(mrs: List<GitLabMergeRequest>) {
+    if (mrs.isEmpty()) {
+        item { EmptyBlock("No merge requests are assigned to you.") }
+    } else {
+        items(mrs, key = { it.id }) { MergeRequestRow(it) }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.todoItems(todos: List<GitLabTodo>) {
+    if (todos.isEmpty()) {
+        item { EmptyBlock("Your to-do list is clear.") }
+    } else {
+        items(todos, key = { it.id }) { todo ->
+            ListCard(
+                icon = Icons.Outlined.TaskAlt,
+                title = todo.target?.title ?: todo.body ?: todo.targetType,
+                meta = "${todo.action} - ${todo.targetType}${todo.project?.name?.let { " in $it" } ?: ""}"
+            )
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.eventItems(events: List<GitLabEvent>) {
+    if (events.isEmpty()) {
+        item { EmptyBlock("No recent notifications yet.") }
+    } else {
+        items(events, key = { it.id }) { event ->
+            ListCard(
+                icon = Icons.Outlined.History,
+                title = event.targetTitle ?: event.targetType ?: "GitLab activity",
+                meta = "${event.author?.username ?: "Someone"} ${event.displayAction}"
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeNavRow(section: WorkSection, count: Int, onSectionChange: (WorkSection) -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSectionChange(section) },
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(section.icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.width(14.dp))
+            Text(section.label, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+            Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -239,7 +513,7 @@ private fun DashboardScreen(
 @Composable
 private fun ProjectScreen(state: LoadState<ProjectData>, onBack: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Issues", "MRs", "Commits")
+    val tabs = listOf("Issues", "MRs", "Commits", "Boards")
 
     Scaffold(
         topBar = {
@@ -263,7 +537,8 @@ private fun ProjectScreen(state: LoadState<ProjectData>, onBack: () -> Unit) {
                                 imageVector = when (index) {
                                     0 -> Icons.Outlined.TaskAlt
                                     1 -> Icons.AutoMirrored.Outlined.MergeType
-                                    else -> Icons.Outlined.History
+                                    2 -> Icons.Outlined.History
+                                    else -> Icons.Outlined.AccountTree
                                 },
                                 contentDescription = label
                             )
@@ -290,11 +565,26 @@ private fun ProjectScreen(state: LoadState<ProjectData>, onBack: () -> Unit) {
             ) {
                 item { ProjectHero(state.value.project, state.value.branches.size) }
                 when (tab) {
-                    0 -> items(state.value.issues, key = { it.id }) { IssueRow(it) }
-                    1 -> items(state.value.mergeRequests, key = { it.id }) { MergeRequestRow(it) }
+                    0 -> issueItems(state.value.issues, "This project has no open issues.")
+                    1 -> mrItems(state.value.mergeRequests)
                     2 -> items(state.value.commits, key = { it.id }) { CommitRow(it) }
+                    3 -> boardItems(state.value.boards)
                 }
             }
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.boardItems(boards: List<GitLabBoard>) {
+    if (boards.isEmpty()) {
+        item { EmptyBlock("This project has no issue boards.") }
+    } else {
+        items(boards, key = { it.id }) { board ->
+            ListCard(
+                icon = Icons.Outlined.AccountTree,
+                title = board.name ?: "Issue board ${board.id}",
+                meta = "Backlog ${if (board.hideBacklogList) "hidden" else "visible"} - Closed ${if (board.hideClosedList) "hidden" else "visible"}"
+            )
         }
     }
 }
@@ -302,9 +592,9 @@ private fun ProjectScreen(state: LoadState<ProjectData>, onBack: () -> Unit) {
 @Composable
 private fun WelcomeBlock(data: DashboardData) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Welcome, ${data.user.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Your work", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            "${data.projects.size} active projects sorted by recent activity",
+            "Welcome, ${data.user.name}. Browse all accessible projects, groups, assigned work, reviews, to-dos, and recent activity.",
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }

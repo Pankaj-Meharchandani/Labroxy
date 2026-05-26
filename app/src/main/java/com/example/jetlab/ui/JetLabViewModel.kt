@@ -3,13 +3,17 @@ package com.example.jetlab.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.jetlab.data.GitLabBoard
 import com.example.jetlab.data.GitLabBranch
 import com.example.jetlab.data.GitLabCommit
+import com.example.jetlab.data.GitLabEvent
+import com.example.jetlab.data.GitLabGroup
 import com.example.jetlab.data.GitLabIssue
 import com.example.jetlab.data.GitLabMergeRequest
 import com.example.jetlab.data.GitLabProject
 import com.example.jetlab.data.GitLabRepository
 import com.example.jetlab.data.GitLabSession
+import com.example.jetlab.data.GitLabTodo
 import com.example.jetlab.data.GitLabUser
 import com.example.jetlab.data.SessionStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,7 +33,13 @@ import kotlinx.coroutines.launch
 
 data class DashboardData(
     val user: GitLabUser,
-    val projects: List<GitLabProject>
+    val projects: List<GitLabProject> = emptyList(),
+    val groups: List<GitLabGroup> = emptyList(),
+    val workItems: List<GitLabIssue> = emptyList(),
+    val assignedWorkItems: List<GitLabIssue> = emptyList(),
+    val assignedMergeRequests: List<GitLabMergeRequest> = emptyList(),
+    val todos: List<GitLabTodo> = emptyList(),
+    val events: List<GitLabEvent> = emptyList()
 )
 
 data class ProjectData(
@@ -37,7 +47,8 @@ data class ProjectData(
     val issues: List<GitLabIssue>,
     val mergeRequests: List<GitLabMergeRequest>,
     val commits: List<GitLabCommit>,
-    val branches: List<GitLabBranch>
+    val branches: List<GitLabBranch>,
+    val boards: List<GitLabBoard>
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -61,15 +72,46 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
             .flatMapLatest { (active, search) ->
                 flow {
                     if (!active.isReady) {
-                        emit(LoadState.Error("Connect to GitLab to see your projects."))
+                        emit(
+                            if (active.isLoaded) {
+                                LoadState.Error("Connect to GitLab to see your projects.")
+                            } else {
+                                LoadState.Loading
+                            }
+                        )
                         return@flow
                     }
                     emit(LoadState.Loading)
                     runCatching {
                         val repo = GitLabRepository(active)
-                        DashboardData(repo.me(), repo.projects(search))
+                        val user = repo.me()
+                        DashboardData(user)
                     }.fold(
-                        onSuccess = { emit(LoadState.Success(it)) },
+                        onSuccess = { initial ->
+                            var data = initial
+                            emit(LoadState.Success(data))
+
+                            data = data.copy(todos = runCatching { GitLabRepository(active).todos() }.getOrDefault(emptyList()))
+                            emit(LoadState.Success(data))
+
+                            data = data.copy(events = runCatching { GitLabRepository(active).events() }.getOrDefault(emptyList()))
+                            emit(LoadState.Success(data))
+
+                            data = data.copy(assignedWorkItems = runCatching { GitLabRepository(active).assignedIssues(data.user.id) }.getOrDefault(emptyList()))
+                            emit(LoadState.Success(data))
+
+                            data = data.copy(assignedMergeRequests = runCatching { GitLabRepository(active).assignedMergeRequests(data.user.id) }.getOrDefault(emptyList()))
+                            emit(LoadState.Success(data))
+
+                            data = data.copy(groups = runCatching { GitLabRepository(active).groups(search) }.getOrDefault(emptyList()))
+                            emit(LoadState.Success(data))
+
+                            data = data.copy(workItems = runCatching { GitLabRepository(active).workItems(search) }.getOrDefault(emptyList()))
+                            emit(LoadState.Success(data))
+
+                            data = data.copy(projects = runCatching { GitLabRepository(active).projects(search) }.getOrDefault(emptyList()))
+                            emit(LoadState.Success(data))
+                        },
                         onFailure = { emit(LoadState.Error(it.toFriendlyMessage())) }
                     )
                 }
@@ -113,7 +155,8 @@ class JetLabViewModel(application: Application) : AndroidViewModel(application) 
                     issues = repo.issues(projectId),
                     mergeRequests = repo.mergeRequests(projectId),
                     commits = repo.commits(projectId),
-                    branches = repo.branches(projectId)
+                    branches = repo.branches(projectId),
+                    boards = repo.boards(projectId)
                 )
             }.fold(
                 onSuccess = { _project.value = LoadState.Success(it) },
