@@ -117,8 +117,7 @@ private enum class WorkSection(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Outlined.Home),
     Projects("Projects", Icons.Outlined.Folder),
     Groups("Groups", Icons.Outlined.AccountTree),
-    WorkItems("Work items", Icons.Outlined.TaskAlt),
-    Assigned("Assigned", Icons.Outlined.Tag),
+    Assigned("Assigned", Icons.Outlined.TaskAlt),
     MergeRequests("Merge requests", Icons.AutoMirrored.Outlined.MergeType),
     Todos("To-Do List", Icons.Outlined.TaskAlt),
     Notifications("Notifications", Icons.Outlined.History),
@@ -482,7 +481,6 @@ private fun DashboardScreen(
                             WorkSection.Home -> homeItems(data, onSectionChange)
                             WorkSection.Projects -> projectItems(data.projects.filteredProjects(query), onProjectClick)
                             WorkSection.Groups -> groupItems(data.groups.filteredGroups(query), onGroupClick)
-                            WorkSection.WorkItems -> issueItems(data.workItems.filteredIssues(query), "No open work items found.", onIssueClick)
                             WorkSection.Assigned -> issueItems(data.assignedWorkItems.filteredIssues(query), "Nothing is assigned to you.", onIssueClick)
                             WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests.filteredMergeRequests(query), onMergeRequestClick)
                             WorkSection.Todos -> todoItems(data.todos.filteredTodos(query), onTodoClick)
@@ -565,7 +563,6 @@ private fun DrawerBadge(section: WorkSection, state: LoadState<DashboardData>) {
         WorkSection.Home -> null
         WorkSection.Projects -> data.projects.size
         WorkSection.Groups -> data.groups.size
-        WorkSection.WorkItems -> data.workItems.size
         WorkSection.Assigned -> data.assignedWorkItems.size
         WorkSection.MergeRequests -> data.assignedMergeRequests.size
         WorkSection.Todos -> data.todos.size
@@ -584,7 +581,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
     item { WelcomeBlock(data) }
     item { HomeNavRow(WorkSection.Projects, data.projects.size, onSectionChange) }
     item { HomeNavRow(WorkSection.Groups, data.groups.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.WorkItems, data.workItems.size, onSectionChange) }
     item { HomeNavRow(WorkSection.Assigned, data.assignedWorkItems.size, onSectionChange) }
     item { HomeNavRow(WorkSection.MergeRequests, data.assignedMergeRequests.size, onSectionChange) }
     item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
