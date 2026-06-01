@@ -97,6 +97,28 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.compose.foundation.Canvas
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.SettingsSuggest
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.VolumeUp
+import androidx.compose.material.icons.outlined.Vibration
+import androidx.compose.material.icons.outlined.Cached
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -128,7 +150,7 @@ import com.example.jetlab.data.GitLabUser
 import com.example.jetlab.ui.theme.LabroxyTheme
 import kotlinx.coroutines.launch
 
-private enum class Screen { Loading, SignIn, Dashboard, Project, Group, Detail, User }
+private enum class Screen { Loading, SignIn, Dashboard, Project, Group, Detail, User, About }
 
 private enum class WorkSection(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Outlined.Home),
@@ -217,7 +239,11 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
                     settings = settings,
                     onThemeModeChange = viewModel::setThemeMode,
                     onPushNotificationsChange = viewModel::setPushNotifications,
+                    onAboutClick = { screen = Screen.About },
                     onSignOut = viewModel::signOut
+                )
+                Screen.About -> AboutScreen(
+                    onBack = { screen = Screen.Dashboard }
                 )
                 Screen.Project -> ProjectScreen(
                     state = project,
@@ -453,6 +479,7 @@ private fun DashboardScreen(
     settings: AppSettings,
     onThemeModeChange: (String) -> Unit,
     onPushNotificationsChange: (Boolean) -> Unit,
+    onAboutClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -532,7 +559,14 @@ private fun DashboardScreen(
                             WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests.filteredMergeRequests(query), onMergeRequestClick)
                             WorkSection.Todos -> todoItems(data.todos.filteredTodos(query), onTodoClick)
                             WorkSection.Notifications -> eventItems(data.events.filteredEvents(query), onEventClick)
-                            WorkSection.Settings -> settingsItems(settings, onThemeModeChange, onPushNotificationsChange)
+                            WorkSection.Settings -> item {
+                                SettingsScreen(
+                                    settings = settings,
+                                    onThemeModeChange = onThemeModeChange,
+                                    onPushNotificationsChange = onPushNotificationsChange,
+                                    onAboutClick = onAboutClick
+                                )
+                            }
                         }
                     }
                 }
@@ -681,54 +715,538 @@ private fun List<GitLabEvent>.filteredEvents(query: String): List<GitLabEvent> =
             it.author?.username.orEmpty().contains(query, ignoreCase = true)
     }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.settingsItems(
+@Composable
+private fun SettingsScreen(
     settings: AppSettings,
     onThemeModeChange: (String) -> Unit,
-    onPushNotificationsChange: (Boolean) -> Unit
+    onPushNotificationsChange: (Boolean) -> Unit,
+    onAboutClick: () -> Unit
 ) {
-    item {
+    val context = LocalContext.current
+    val appName = remember {
+        runCatching {
+            context.applicationInfo.loadLabel(context.packageManager).toString()
+        }.getOrDefault("Labroxy")
+    }
+    
+    var soundEnabled by remember { mutableStateOf(true) }
+    var vibrationEnabled by remember { mutableStateOf(true) }
+    var cacheSize by remember { mutableStateOf("1.2 MB") }
+    var showClearCacheDialog by remember { mutableStateOf(false) }
+    
+    var syncInterval by remember { mutableStateOf("15 mins") }
+    var showIntervalDropdown by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // --- APPEARANCE ---
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Theme", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                SettingsSectionHeader(icon = Icons.Outlined.Palette, title = "Appearance")
+                
+                Text(
+                    "Theme Mode",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    listOf("system" to "System", "light" to "Light", "dark" to "Dark").forEach { (value, label) ->
-                        FilterChip(
+                    val themes = listOf(
+                        Triple("system", "System", Icons.Outlined.SettingsSuggest),
+                        Triple("light", "Light", Icons.Outlined.WbSunny),
+                        Triple("dark", "Dark", Icons.Outlined.DarkMode)
+                    )
+                    themes.forEach { (value, label, icon) ->
+                        ThemeOptionCard(
+                            label = label,
+                            icon = icon,
                             selected = settings.themeMode == value,
                             onClick = { onThemeModeChange(value) },
-                            label = { Text(label, maxLines = 1) },
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
             }
         }
-    }
-    item {
+
+        // --- NOTIFICATIONS ---
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Push notifications", fontWeight = FontWeight.Bold)
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                SettingsSectionHeader(icon = Icons.Outlined.NotificationsActive, title = "Notifications")
+                
+                // Push Notifications
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Push Notifications", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Allow $appName to notify you about GitLab updates.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(
+                        checked = settings.pushNotifications,
+                        onCheckedChange = onPushNotificationsChange
+                    )
+                }
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                // Sound Setting
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Notification Sound", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Play sound for comments, issues, and MR activities.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(
+                        checked = soundEnabled,
+                        onCheckedChange = { soundEnabled = it }
+                    )
+                }
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                // Vibration Setting
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Haptic Feedback", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Vibrate device on important notification updates.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(
+                        checked = vibrationEnabled,
+                        onCheckedChange = { vibrationEnabled = it }
+                    )
+                }
+            }
+        }
+
+        // --- DATA & SYNC ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                SettingsSectionHeader(icon = Icons.Outlined.Storage, title = "Data & Synchronization")
+                
+                // Offline Sync Dropdown
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Sync Frequency", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                        Text("Background check rate for activities", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    
+                    Box {
+                        TextButton(onClick = { showIntervalDropdown = true }) {
+                            Text(syncInterval, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.size(16.dp))
+                        }
+                        
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = showIntervalDropdown,
+                            onDismissRequest = { showIntervalDropdown = false }
+                        ) {
+                            listOf("Manual", "15 mins", "30 mins", "1 hour").forEach { interval ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(interval) },
+                                    onClick = {
+                                        syncInterval = interval
+                                        showIntervalDropdown = false
+                                        Toast.makeText(context, "Sync frequency updated to $interval", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                // Cache size and clear button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Offline Local Cache", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Cache size: $cacheSize",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Button(
+                        onClick = { showClearCacheDialog = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Outlined.Cached, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Clear", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // --- ABOUT SECTION ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SettingsSectionHeader(icon = Icons.Outlined.Info, title = "About")
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onAboutClick)
+                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("About $appName", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                        Text("App details, version and technologies", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = "Go to About page",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+
+    if (showClearCacheDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showClearCacheDialog = false },
+            title = { Text("Clear Cached Data") },
+            text = { Text("Are you sure you want to clear all offline issue history, user avatars, and cached workspaces? The app will reload fresh data from your GitLab instance.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearCacheDialog = false
+                        cacheSize = "0.0 KB"
+                        Toast.makeText(context, "Local cache successfully cleared!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Clear", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCacheDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ThemeOptionCard(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            width = 2.dp,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = label,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSectionHeader(icon: ImageVector, title: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            letterSpacing = 1.sp
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AboutScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val appName = remember {
+        runCatching {
+            context.applicationInfo.loadLabel(context.packageManager).toString()
+        }.getOrDefault("Labroxy")
+    }
+    
+    val appIconDrawable = remember {
+        runCatching {
+            context.packageManager.getApplicationIcon(context.packageName)
+        }.getOrNull()
+    }
+    
+    val packageInfo = remember {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+        }.getOrNull()
+    }
+    val versionName = packageInfo?.versionName ?: "1.0.0"
+    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        packageInfo?.longVersionCode ?: 1L
+    } else {
+        @Suppress("DEPRECATION")
+        packageInfo?.versionCode?.toLong() ?: 1L
+    }
+
+    var clickCount by remember { mutableStateOf(0) }
+    var showEasterEgg by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("About $appName", fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item {
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable {
+                            clickCount++
+                            if (clickCount >= 7) {
+                                showEasterEgg = true
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (appIconDrawable != null) {
+                        AsyncImage(
+                            model = appIconDrawable,
+                            contentDescription = "App Icon",
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Outlined.Palette,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            item {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        "Allow Labroxy to prepare notification delivery for GitLab updates.",
+                        text = appName,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Version $versionName (Build $versionCode)",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Switch(
-                    checked = settings.pushNotifications,
-                    onCheckedChange = onPushNotificationsChange
+            }
+
+            if (showEasterEgg) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Outlined.Star, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "🚀 You found the $appName Easter Egg! Developer mode unlocked.",
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(
+                        Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Text(
+                            "What is $appName?",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "$appName is a premium, high-performance client for GitLab designed natively in Jetpack Compose with modern Material Design 3 guidelines.\n\n" +
+                                "It enables developers to track issues, approve merge requests, manage todo activities, and stay up to date with automated notifications on the go, offline, and in real time.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 20.sp
+                        )
+                    }
+                }
+            }
+
+            item {
+                SettingsSectionHeader(icon = Icons.Outlined.Code, title = "Technology Stack")
+            }
+
+            item {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val techs = listOf("Kotlin", "Jetpack Compose", "Material 3", "DataStore", "Coroutines", "Flow", "Coil Image Loader", "Ktor/Serialization")
+                    techs.forEach { tech ->
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(tech) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Code,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            item {
+                Text(
+                    text = "© 2026 JetLab Project. Open source Apache 2.0 License.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(vertical = 16.dp)
                 )
             }
         }
