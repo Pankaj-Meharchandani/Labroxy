@@ -73,6 +73,12 @@ data class GroupData(
     val issues: List<GitLabIssue> = emptyList()
 )
 
+data class UserData(
+    val user: GitLabUser,
+    val issues: List<GitLabIssue> = emptyList(),
+    val mergeRequests: List<GitLabMergeRequest> = emptyList()
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class LabroxyViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionStore = SessionStore(application)
@@ -157,7 +163,10 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
     val detail: StateFlow<LoadState<WorkDetailData>> = _detail.asStateFlow()
     private val _group = MutableStateFlow<LoadState<GroupData>>(LoadState.Loading)
     val group: StateFlow<LoadState<GroupData>> = _group.asStateFlow()
+    private val _userState = MutableStateFlow<LoadState<UserData>>(LoadState.Loading)
+    val userState: StateFlow<LoadState<UserData>> = _userState.asStateFlow()
     private var projectJob: Job? = null
+    private var userJob: Job? = null
     private var detailJob: Job? = null
     private var groupJob: Job? = null
 
@@ -233,6 +242,28 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             }.fold(
                 onSuccess = { _group.value = LoadState.Success(it) },
                 onFailure = { _group.value = LoadState.Error(it.toFriendlyMessage()) }
+            )
+        }
+    }
+
+    fun loadUser(username: String) {
+        userJob?.cancel()
+        userJob = viewModelScope.launch {
+            val active = session.value
+            if (!active.isReady) {
+                _userState.value = LoadState.Error("Connect to GitLab first.")
+                return@launch
+            }
+            _userState.value = LoadState.Loading
+            runCatching {
+                val repo = GitLabRepository(active)
+                val user = repo.getUserByUsername(username) ?: throw Exception("User @$username not found")
+                val issues = runCatching { repo.assignedIssues(user.id) }.getOrDefault(emptyList())
+                val mergeRequests = runCatching { repo.assignedMergeRequests(user.id) }.getOrDefault(emptyList())
+                UserData(user, issues, mergeRequests)
+            }.fold(
+                onSuccess = { _userState.value = LoadState.Success(it) },
+                onFailure = { _userState.value = LoadState.Error(it.toFriendlyMessage()) }
             )
         }
     }

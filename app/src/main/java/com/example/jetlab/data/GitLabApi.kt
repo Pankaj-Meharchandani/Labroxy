@@ -43,6 +43,11 @@ class GitLabApi(
 
     suspend fun currentUser(): GitLabUser = get("user")
 
+    suspend fun getUserByUsername(username: String): GitLabUser? =
+        getList<GitLabUser>("users") {
+            parameter("username", username)
+        }.firstOrNull()
+
     suspend fun projects(query: String): List<GitLabProject> =
         getList("projects") {
             parameter("membership", true)

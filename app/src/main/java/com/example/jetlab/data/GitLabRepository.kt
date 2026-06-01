@@ -6,6 +6,7 @@ class GitLabRepository(
     private val api = GitLabApi(session.host) { session.token }
 
     suspend fun me(): GitLabUser = api.currentUser()
+    suspend fun getUserByUsername(username: String): GitLabUser? = api.getUserByUsername(username)
     suspend fun projects(query: String): List<GitLabProject> = api.projects(query)
     suspend fun groups(query: String): List<GitLabGroup> = api.groups(query)
     suspend fun todos(): List<GitLabTodo> = api.todos()

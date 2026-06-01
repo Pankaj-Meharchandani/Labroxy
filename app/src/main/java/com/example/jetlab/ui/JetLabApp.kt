@@ -100,6 +100,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.border
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -120,10 +124,11 @@ import com.example.jetlab.data.GitLabMergeRequest
 import com.example.jetlab.data.GitLabProject
 import com.example.jetlab.data.GitLabSession
 import com.example.jetlab.data.GitLabTodo
+import com.example.jetlab.data.GitLabUser
 import com.example.jetlab.ui.theme.LabroxyTheme
 import kotlinx.coroutines.launch
 
-private enum class Screen { Loading, SignIn, Dashboard, Project, Group, Detail }
+private enum class Screen { Loading, SignIn, Dashboard, Project, Group, Detail, User }
 
 private enum class WorkSection(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Outlined.Home),
@@ -143,6 +148,7 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
     val project by viewModel.project.collectAsState()
     val group by viewModel.group.collectAsState()
     val detail by viewModel.detail.collectAsState()
+    val userState by viewModel.userState.collectAsState()
     val query by viewModel.searchQuery.collectAsState()
     val settings by viewModel.settings.collectAsState()
     var screen by remember { mutableStateOf(Screen.Loading) }
@@ -157,8 +163,8 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
         if (session.isLoaded && !session.isReady) section = WorkSection.Home
     }
 
-    BackHandler(enabled = screen in listOf(Screen.Project, Screen.Group, Screen.Detail) || section != WorkSection.Home) {
-        if (screen in listOf(Screen.Project, Screen.Group, Screen.Detail)) {
+    BackHandler(enabled = screen in listOf(Screen.Project, Screen.Group, Screen.Detail, Screen.User) || section != WorkSection.Home) {
+        if (screen in listOf(Screen.Project, Screen.Group, Screen.Detail, Screen.User)) {
             screen = Screen.Dashboard
         } else {
             section = WorkSection.Home
@@ -252,7 +258,27 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
                     onBack = { screen = Screen.Dashboard },
                     onIssueReferenceClick = viewModel::loadIssueReference,
                     onComment = viewModel::addComment,
-                    onUpdateIssue = viewModel::updateIssueStatusAndLabels
+                    onUpdateIssue = viewModel::updateIssueStatusAndLabels,
+                    onUserClick = { username ->
+                        viewModel.loadUser(username)
+                        screen = Screen.User
+                    }
+                )
+                Screen.User -> UserScreen(
+                    state = userState,
+                    onBack = { screen = Screen.Dashboard },
+                    onIssueClick = {
+                        it.projectId?.let { projectId ->
+                            viewModel.loadIssue(projectId, it.iid)
+                            screen = Screen.Detail
+                        }
+                    },
+                    onMergeRequestClick = {
+                        it.projectId?.let { projectId ->
+                            viewModel.loadMergeRequest(projectId, it.iid)
+                            screen = Screen.Detail
+                        }
+                    }
                 )
             }
         }
@@ -845,7 +871,8 @@ private fun NoteBody(
     body: String,
     session: GitLabSession,
     detail: WorkDetailData,
-    onIssueReferenceClick: (String?, Long, Long) -> Unit
+    onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onUserClick: (String) -> Unit
 ) {
     val attachments = remember(body, session.host, detail.webUrl) {
         extractCommentAttachments(body, session.host, detail.webUrl)
@@ -857,7 +884,10 @@ private fun NoteBody(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (displayBody.isNotBlank()) {
-            Text(displayBody)
+            ClickableCommentText(
+                text = displayBody,
+                onUserClick = onUserClick
+            )
         }
         attachments.filter { it.isImage }.forEach { attachment ->
             CommentImagePreview(attachment, session.token)
@@ -1244,7 +1274,8 @@ private fun WorkDetailScreen(
     onBack: () -> Unit,
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
     onComment: (String) -> Unit,
-    onUpdateIssue: (Boolean, String) -> Unit
+    onUpdateIssue: (Boolean, String) -> Unit,
+    onUserClick: (String) -> Unit
 ) {
     var comment by remember { mutableStateOf("") }
     var labels by remember { mutableStateOf("") }
@@ -1352,7 +1383,8 @@ private fun WorkDetailScreen(
                                     body = note.body,
                                     session = session,
                                     detail = data,
-                                    onIssueReferenceClick = onIssueReferenceClick
+                                    onIssueReferenceClick = onIssueReferenceClick,
+                                    onUserClick = onUserClick
                                 )
                             }
                         }
@@ -1557,5 +1589,193 @@ private fun EmptyBlock(message: String) {
     ) {
         Icon(Icons.Outlined.Folder, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ClickableCommentText(
+    text: String,
+    onUserClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val pattern = Regex("@([A-Za-z0-9_.-]+)")
+    val annotatedString = buildAnnotatedString {
+        var lastIndex = 0
+        pattern.findAll(text).forEach { result ->
+            val matchRange = result.range
+            val username = result.groups[1]!!.value
+            
+            if (matchRange.first > lastIndex) {
+                append(text.substring(lastIndex, matchRange.first))
+            }
+            
+            val start = length
+            append("@$username")
+            val end = length
+            
+            addStyle(
+                style = SpanStyle(
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                ),
+                start = start,
+                end = end
+            )
+            addStringAnnotation(
+                tag = "USER",
+                annotation = username,
+                start = start,
+                end = end
+            )
+            lastIndex = matchRange.last + 1
+        }
+        if (lastIndex < text.length) {
+            append(text.substring(lastIndex))
+        }
+    }
+    
+    ClickableText(
+        text = annotatedString,
+        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+        modifier = modifier,
+        onClick = { offset ->
+            annotatedString.getStringAnnotations(tag = "USER", start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    onUserClick(annotation.item)
+                }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UserScreen(
+    state: LoadState<UserData>,
+    onBack: () -> Unit,
+    onIssueClick: (GitLabIssue) -> Unit,
+    onMergeRequestClick: (GitLabMergeRequest) -> Unit
+) {
+    var tab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Assigned Issues", "Merge Requests")
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("User Profile", fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                tabs.forEachIndexed { index, label ->
+                    NavigationBarItem(
+                        selected = tab == index,
+                        onClick = { tab = index },
+                        icon = {
+                            Icon(
+                                imageVector = when (index) {
+                                    0 -> Icons.Outlined.TaskAlt
+                                    else -> Icons.AutoMirrored.Outlined.MergeType
+                                },
+                                contentDescription = label
+                            )
+                        },
+                        label = { Text(label) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        when (state) {
+            LoadState.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            is LoadState.Error -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                ErrorBlock(state.message)
+            }
+            is LoadState.Success -> {
+                val data = state.value
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        UserHeroCard(data.user)
+                    }
+                    when (tab) {
+                        0 -> issueItems(data.issues, "No open issues assigned to this user.", onIssueClick)
+                        1 -> mrItems(data.mergeRequests, onMergeRequestClick)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserAvatar(user: GitLabUser, size: Int = 80) {
+    var hasError by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary)
+            .border(2.dp, MaterialTheme.colorScheme.onPrimary, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!user.avatarUrl.isNullOrBlank() && !hasError) {
+            AsyncImage(
+                model = user.avatarUrl,
+                contentDescription = user.name,
+                contentScale = ContentScale.Crop,
+                onError = { hasError = true },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Text(
+                user.name.take(1).uppercase(),
+                color = Color.White,
+                style = if (size > 50) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun UserHeroCard(user: GitLabUser) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                            Color.Transparent
+                        )
+                    )
+                )
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            UserAvatar(user = user, size = 80)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(user.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("@${user.username}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            }
+        }
     }
 }
