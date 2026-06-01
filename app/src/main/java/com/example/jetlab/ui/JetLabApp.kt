@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
@@ -40,12 +41,16 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +67,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -86,7 +92,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -249,33 +258,69 @@ private fun LoadingSessionScreen() {
 private fun SignInScreen(defaultHost: String, onConnect: (String, String) -> Unit) {
     var host by remember { mutableStateOf(defaultHost) }
     var token by remember { mutableStateOf("") }
+    var tokenVisible by remember { mutableStateOf(false) }
+    val colorScheme = MaterialTheme.colorScheme
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = colorScheme.primary,
+        unfocusedBorderColor = colorScheme.outline.copy(alpha = 0.7f),
+        focusedLabelColor = colorScheme.primary,
+        cursorColor = colorScheme.primary,
+        focusedLeadingIconColor = colorScheme.primary,
+        unfocusedLeadingIconColor = colorScheme.onSurfaceVariant,
+        focusedTrailingIconColor = colorScheme.primary,
+        unfocusedTrailingIconColor = colorScheme.onSurfaceVariant
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFFFFEFE5), Color(0xFFFAF9F6), Color(0xFFE9F1F1))
+                    listOf(
+                        colorScheme.primary.copy(alpha = 0.18f),
+                        colorScheme.background,
+                        colorScheme.secondary.copy(alpha = 0.14f)
+                    )
                 )
             )
-            .padding(24.dp),
+            .padding(horizontal = 24.dp, vertical = 28.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Outlined.AccountTree,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(48.dp)
-        )
-        Spacer(Modifier.height(18.dp))
-        Text("Labroxy", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-        Text(
-            "A calm, fast GitLab cockpit for projects, groups, work items, reviews, and notifications.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(28.dp))
-        Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(colorScheme.primary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AccountTree,
+                    contentDescription = null,
+                    tint = colorScheme.primary,
+                    modifier = Modifier.size(34.dp)
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "Labroxy",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "A calm GitLab cockpit for projects, groups, issues, reviews, and notifications.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(Modifier.height(30.dp))
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.24f)),
+            colors = CardDefaults.cardColors(containerColor = colorScheme.surface.copy(alpha = 0.96f))
+        ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 OutlinedTextField(
                     value = host,
@@ -283,6 +328,12 @@ private fun SignInScreen(defaultHost: String, onConnect: (String, String) -> Uni
                     label = { Text("GitLab host") },
                     leadingIcon = { Icon(Icons.Outlined.Code, null) },
                     singleLine = true,
+                    supportingText = { Text("Use gitlab.com or your self-managed GitLab URL.") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Next
+                    ),
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -290,16 +341,56 @@ private fun SignInScreen(defaultHost: String, onConnect: (String, String) -> Uni
                     onValueChange = { token = it },
                     label = { Text("Personal access token") },
                     leadingIcon = { Icon(Icons.Outlined.Key, null) },
+                    trailingIcon = {
+                        IconButton(onClick = { tokenVisible = !tokenVisible }) {
+                            Icon(
+                                imageVector = if (tokenVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                contentDescription = if (tokenVisible) "Hide token" else "Show token"
+                            )
+                        }
+                    },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
+                    supportingText = { Text("Stored only on this device and sent to your GitLab host.") },
+                    visualTransformation = if (tokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Button(
                     onClick = { onConnect(host, token) },
                     enabled = host.isNotBlank() && token.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colorScheme.primary,
+                        contentColor = colorScheme.onPrimary
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
                 ) {
-                    Text("Connect")
+                    Text("Connect", fontWeight = FontWeight.Bold)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Security,
+                        contentDescription = null,
+                        tint = colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Works with GitLab.com and self-managed instances",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
