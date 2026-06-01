@@ -830,6 +830,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.todoItems(todos: List
         items(todos, key = { it.id }) { todo ->
             ListCard(
                 icon = Icons.Outlined.TaskAlt,
+                user = todo.author,
                 title = todo.target?.title ?: todo.body ?: todo.targetType,
                 meta = "${todo.action} - ${todo.targetType}${todo.project?.name?.let { " in $it" } ?: ""}",
                 onClick = { onClick(todo) }
@@ -845,6 +846,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.eventItems(events: Li
         items(events, key = { it.id }) { event ->
             ListCard(
                 icon = Icons.Outlined.History,
+                user = event.author,
                 title = event.targetTitle ?: event.targetType ?: "GitLab activity",
                 meta = "${event.author?.username ?: "Someone"} ${event.displayAction}",
                 onClick = { onClick(event) }
@@ -1376,6 +1378,7 @@ private fun WorkDetailScreen(
                         items(data.notes, key = { it.id }) { note ->
                             ListCard(
                                 icon = Icons.Outlined.History,
+                                user = note.author,
                                 title = note.author?.name ?: note.author?.username ?: "GitLab",
                                 meta = note.createdAt ?: ""
                             ) {
@@ -1476,7 +1479,13 @@ private fun ProjectHero(project: GitLabProject, branchCount: Int) {
 
 @Composable
 private fun IssueRow(issue: GitLabIssue, onClick: () -> Unit = {}) {
-    ListCard(icon = Icons.Outlined.TaskAlt, title = "#${issue.iid} ${issue.title}", meta = "${issue.state} by ${issue.author?.username ?: "unknown"}", onClick = onClick) {
+    ListCard(
+        icon = Icons.Outlined.TaskAlt,
+        user = issue.author,
+        title = "#${issue.iid} ${issue.title}",
+        meta = "${issue.state} by ${issue.author?.username ?: "unknown"}",
+        onClick = onClick
+    ) {
         LabelRow(issue.labels)
     }
 }
@@ -1485,6 +1494,7 @@ private fun IssueRow(issue: GitLabIssue, onClick: () -> Unit = {}) {
 private fun MergeRequestRow(mr: GitLabMergeRequest, onClick: () -> Unit = {}) {
     ListCard(
         icon = Icons.AutoMirrored.Outlined.MergeType,
+        user = mr.author,
         title = "!${mr.iid} ${mr.title}",
         meta = "${mr.sourceBranch} into ${mr.targetBranch}",
         onClick = onClick
@@ -1503,7 +1513,14 @@ private fun CommitRow(commit: GitLabCommit) {
 }
 
 @Composable
-private fun ListCard(icon: ImageVector, title: String, meta: String, onClick: (() -> Unit)? = null, content: @Composable () -> Unit = {}) {
+private fun ListCard(
+    icon: ImageVector,
+    title: String,
+    meta: String,
+    user: GitLabUser? = null,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit = {}
+) {
     val modifier = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -1511,7 +1528,11 @@ private fun ListCard(icon: ImageVector, title: String, meta: String, onClick: ((
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+            if (user != null) {
+                UserAvatar(user = user, size = 36)
+            } else {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+            }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(title, fontWeight = FontWeight.SemiBold, overflow = TextOverflow.Ellipsis)
@@ -1727,7 +1748,11 @@ private fun UserAvatar(user: GitLabUser, size: Int = 80) {
             .size(size.dp)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.primary)
-            .border(2.dp, MaterialTheme.colorScheme.onPrimary, CircleShape),
+            .border(
+                width = if (size > 50) 2.dp else 1.dp,
+                color = if (size > 50) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outlineVariant,
+                shape = CircleShape
+            ),
         contentAlignment = Alignment.Center
     ) {
         if (!user.avatarUrl.isNullOrBlank() && !hasError) {
@@ -1742,7 +1767,13 @@ private fun UserAvatar(user: GitLabUser, size: Int = 80) {
             Text(
                 user.name.take(1).uppercase(),
                 color = Color.White,
-                style = if (size > 50) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.titleMedium,
+                style = if (size > 50) {
+                    MaterialTheme.typography.headlineLarge
+                } else if (size > 36) {
+                    MaterialTheme.typography.titleMedium
+                } else {
+                    MaterialTheme.typography.bodyMedium
+                },
                 fontWeight = FontWeight.Bold
             )
         }
