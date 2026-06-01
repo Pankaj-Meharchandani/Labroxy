@@ -29,8 +29,8 @@ data class AppSettings(
 data class CachedDashboard(
     val projects: List<GitLabProject> = emptyList(),
     val groups: List<GitLabGroup> = emptyList(),
-    val workItems: List<GitLabIssue> = emptyList(),
     val assignedWorkItems: List<GitLabIssue> = emptyList(),
+    val assignedCompletedWorkItems: List<GitLabIssue> = emptyList(),
     val assignedMergeRequests: List<GitLabMergeRequest> = emptyList(),
     val todos: List<GitLabTodo> = emptyList(),
     val events: List<GitLabEvent> = emptyList()
@@ -43,8 +43,8 @@ class SessionStore(private val context: Context) {
     private val pushNotificationsKey = booleanPreferencesKey("push_notifications")
     private val projectsCacheKey = stringPreferencesKey("cache_projects")
     private val groupsCacheKey = stringPreferencesKey("cache_groups")
-    private val workItemsCacheKey = stringPreferencesKey("cache_work_items")
     private val assignedWorkItemsCacheKey = stringPreferencesKey("cache_assigned_work_items")
+    private val assignedCompletedWorkItemsCacheKey = stringPreferencesKey("cache_assigned_completed_work_items")
     private val assignedMergeRequestsCacheKey = stringPreferencesKey("cache_assigned_merge_requests")
     private val todosCacheKey = stringPreferencesKey("cache_todos")
     private val eventsCacheKey = stringPreferencesKey("cache_events")
@@ -72,8 +72,8 @@ class SessionStore(private val context: Context) {
         CachedDashboard(
             projects = decodeList(prefs[projectsCacheKey], GitLabProject.serializer()),
             groups = decodeList(prefs[groupsCacheKey], GitLabGroup.serializer()),
-            workItems = decodeList(prefs[workItemsCacheKey], GitLabIssue.serializer()),
             assignedWorkItems = decodeList(prefs[assignedWorkItemsCacheKey], GitLabIssue.serializer()),
+            assignedCompletedWorkItems = decodeList(prefs[assignedCompletedWorkItemsCacheKey], GitLabIssue.serializer()),
             assignedMergeRequests = decodeList(prefs[assignedMergeRequestsCacheKey], GitLabMergeRequest.serializer()),
             todos = decodeList(prefs[todosCacheKey], GitLabTodo.serializer()),
             events = decodeList(prefs[eventsCacheKey], GitLabEvent.serializer())
@@ -113,12 +113,12 @@ class SessionStore(private val context: Context) {
         context.dataStore.edit { it[groupsCacheKey] = json.encodeToString(groups) }
     }
 
-    suspend fun saveWorkItems(workItems: List<GitLabIssue>) {
-        context.dataStore.edit { it[workItemsCacheKey] = json.encodeToString(workItems) }
-    }
-
     suspend fun saveAssignedWorkItems(workItems: List<GitLabIssue>) {
         context.dataStore.edit { it[assignedWorkItemsCacheKey] = json.encodeToString(workItems) }
+    }
+
+    suspend fun saveAssignedCompletedWorkItems(workItems: List<GitLabIssue>) {
+        context.dataStore.edit { it[assignedCompletedWorkItemsCacheKey] = json.encodeToString(workItems) }
     }
 
     suspend fun saveAssignedMergeRequests(mergeRequests: List<GitLabMergeRequest>) {

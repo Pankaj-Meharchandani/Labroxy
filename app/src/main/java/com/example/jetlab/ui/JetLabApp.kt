@@ -2,6 +2,8 @@
 
 package com.example.jetlab.ui
 
+import android.net.Uri
+import android.util.Base64
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
@@ -15,9 +17,11 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +41,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.NotificationsNone
@@ -91,6 +96,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -99,6 +107,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import coil.decode.SvgDecoder
+import coil.request.ImageRequest
 import com.example.jetlab.data.AppSettings
 import com.example.jetlab.data.GitLabBoard
 import com.example.jetlab.data.GitLabCommit
@@ -107,6 +118,7 @@ import com.example.jetlab.data.GitLabGroup
 import com.example.jetlab.data.GitLabIssue
 import com.example.jetlab.data.GitLabMergeRequest
 import com.example.jetlab.data.GitLabProject
+import com.example.jetlab.data.GitLabSession
 import com.example.jetlab.data.GitLabTodo
 import com.example.jetlab.ui.theme.LabroxyTheme
 import kotlinx.coroutines.launch
@@ -236,7 +248,9 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
                 )
                 Screen.Detail -> WorkDetailScreen(
                     state = detail,
+                    session = session,
                     onBack = { screen = Screen.Dashboard },
+                    onIssueReferenceClick = viewModel::loadIssue,
                     onComment = viewModel::addComment,
                     onUpdateIssue = viewModel::updateIssueStatusAndLabels
                 )
@@ -417,6 +431,7 @@ private fun DashboardScreen(
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    var assignedTab by remember { mutableIntStateOf(0) }
 
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch { drawerState.close() }
@@ -481,7 +496,13 @@ private fun DashboardScreen(
                             WorkSection.Home -> homeItems(data, onSectionChange)
                             WorkSection.Projects -> projectItems(data.projects.filteredProjects(query), onProjectClick)
                             WorkSection.Groups -> groupItems(data.groups.filteredGroups(query), onGroupClick)
-                            WorkSection.Assigned -> issueItems(data.assignedWorkItems.filteredIssues(query), "Nothing is assigned to you.", onIssueClick)
+                            WorkSection.Assigned -> assignedItems(
+                                data = data,
+                                query = query,
+                                selectedTab = assignedTab,
+                                onTabChange = { assignedTab = it },
+                                onClick = onIssueClick
+                            )
                             WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests.filteredMergeRequests(query), onMergeRequestClick)
                             WorkSection.Todos -> todoItems(data.todos.filteredTodos(query), onTodoClick)
                             WorkSection.Notifications -> eventItems(data.events.filteredEvents(query), onEventClick)
@@ -728,6 +749,46 @@ private fun androidx.compose.foundation.lazy.LazyListScope.issueItems(issues: Li
     }
 }
 
+private fun androidx.compose.foundation.lazy.LazyListScope.assignedItems(
+    data: DashboardData,
+    query: String,
+    selectedTab: Int,
+    onTabChange: (Int) -> Unit,
+    onClick: (GitLabIssue) -> Unit
+) {
+    item {
+        val openCount = data.assignedWorkItems.size
+        val completedCount = data.assignedCompletedWorkItems.size
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = selectedTab == 0,
+                onClick = { onTabChange(0) },
+                label = { Text("Open $openCount") }
+            )
+            FilterChip(
+                selected = selectedTab == 1,
+                onClick = { onTabChange(1) },
+                label = { Text("Completed $completedCount") }
+            )
+        }
+    }
+
+    val issues = if (selectedTab == 0) {
+        data.assignedWorkItems.filteredIssues(query)
+    } else {
+        data.assignedCompletedWorkItems.filteredIssues(query)
+    }
+
+    if (issues.isEmpty()) {
+        item { EmptyBlock(if (selectedTab == 0) "Nothing is assigned to you." else "No completed assigned issues yet.") }
+    } else {
+        items(issues, key = { it.id }) { issue ->
+            IssueRow(issue, onClick = { onClick(issue) })
+        }
+    }
+}
+
 private fun androidx.compose.foundation.lazy.LazyListScope.mrItems(mrs: List<GitLabMergeRequest>, onClick: (GitLabMergeRequest) -> Unit = {}) {
     if (mrs.isEmpty()) {
         item { EmptyBlock("No merge requests are assigned to you.") }
@@ -765,6 +826,213 @@ private fun androidx.compose.foundation.lazy.LazyListScope.eventItems(events: Li
         }
     }
 }
+
+private data class CommentAttachment(
+    val url: String,
+    val label: String,
+    val isImage: Boolean
+)
+
+private data class IssueReference(
+    val projectId: Long,
+    val issueIid: Long,
+    val label: String
+)
+
+@Composable
+private fun NoteBody(
+    body: String,
+    session: GitLabSession,
+    detail: WorkDetailData,
+    onIssueReferenceClick: (Long, Long) -> Unit
+) {
+    val attachments = remember(body, session.host, detail.webUrl) {
+        extractCommentAttachments(body, session.host, detail.webUrl)
+    }
+    val displayBody = remember(body) { body.stripPreviewedMarkdownImages() }
+    val issueReferences = remember(body, detail.target, detail.webUrl) {
+        extractIssueReferences(body, detail)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (displayBody.isNotBlank()) {
+            Text(displayBody)
+        }
+        attachments.filter { it.isImage }.forEach { attachment ->
+            CommentImagePreview(attachment, session.token)
+        }
+        val files = attachments.filterNot { it.isImage }
+        if (files.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                files.forEach { attachment ->
+                    CommentFileChip(attachment)
+                }
+            }
+        }
+        if (issueReferences.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                issueReferences.forEach { reference ->
+                    AssistChip(
+                        onClick = { onIssueReferenceClick(reference.projectId, reference.issueIid) },
+                        leadingIcon = { Icon(Icons.Outlined.TaskAlt, null, Modifier.size(16.dp)) },
+                        label = { Text(reference.label) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommentImagePreview(attachment: CommentAttachment, token: String) {
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    val request = remember(attachment.url, token) {
+        val builder = ImageRequest.Builder(context)
+            .data(attachment.url)
+            .addHeader("PRIVATE-TOKEN", token)
+            .setHeader("Authorization", token.toGitLabBasicAuthHeader())
+            .crossfade(true)
+        if (attachment.url.isSvgUrl()) {
+            builder.decoderFactory(SvgDecoder.Factory())
+        }
+        builder.build()
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { uriHandler.openUri(attachment.url) },
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        AsyncImage(
+            model = request,
+            contentDescription = attachment.label,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 120.dp, max = 280.dp)
+                .aspectRatio(16f / 9f)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+    }
+}
+
+@Composable
+private fun CommentFileChip(attachment: CommentAttachment) {
+    val uriHandler = LocalUriHandler.current
+
+    AssistChip(
+        onClick = { uriHandler.openUri(attachment.url) },
+        leadingIcon = { Icon(Icons.Outlined.InsertDriveFile, null, Modifier.size(16.dp)) },
+        label = { Text(attachment.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        modifier = Modifier.widthIn(max = 220.dp)
+    )
+}
+
+private fun extractCommentAttachments(body: String, host: String, detailWebUrl: String?): List<CommentAttachment> {
+    val markdownUrls = markdownLinkPattern.findAll(body).mapNotNull { it.groups[1]?.value }
+    val bareUrls = bareUrlPattern.findAll(body).map { it.value.trimEnd('.', ',', ')') }
+    return (markdownUrls + bareUrls)
+        .mapNotNull { raw -> resolveAttachmentUrl(raw, host, detailWebUrl) }
+        .distinct()
+        .map { url ->
+            val normalizedUrl = url.normalizeHttpUrl()
+            CommentAttachment(
+                url = normalizedUrl,
+                label = url.substringBefore('?').substringBefore('#').substringAfterLast('/').ifBlank { "Attachment" },
+                isImage = normalizedUrl.isPreviewableImageUrl()
+            )
+        }
+        .toList()
+}
+
+private val markdownLinkPattern = Regex("""!?\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)""")
+private val markdownImagePattern = Regex("""!\[[^\]]*]\([^)]+\)(?:\{[^}]*\})?""")
+private val bareUrlPattern = Regex("""https?://[^\s)]+""")
+private val sameProjectIssuePattern = Regex("""(?<![\w/])#(\d+)""")
+private val issueUrlPattern = Regex("""/-/issues/(\d+)""")
+
+private fun String.stripPreviewedMarkdownImages(): String =
+    replace(markdownImagePattern, "")
+        .lines()
+        .joinToString("\n") { it.trimEnd() }
+        .trim()
+
+private fun resolveAttachmentUrl(rawUrl: String, host: String, detailWebUrl: String?): String? {
+    val cleaned = rawUrl.trim().trim('<', '>')
+    if (cleaned.isBlank()) return null
+    val projectBaseUrl = detailWebUrl?.toGitLabProjectBaseUrl()
+    return when {
+        cleaned.startsWith("http://") || cleaned.startsWith("https://") -> cleaned
+        cleaned.startsWith("/uploads/") && projectBaseUrl != null -> projectBaseUrl + cleaned
+        cleaned.startsWith("uploads/") && projectBaseUrl != null -> "$projectBaseUrl/$cleaned"
+        cleaned.startsWith("/") -> host.trim().removeSuffix("/") + cleaned
+        cleaned.startsWith("uploads/") -> host.trim().removeSuffix("/") + "/" + cleaned
+        else -> null
+    }
+}
+
+private fun String.normalizeHttpUrl(): String {
+    val uri = runCatching { Uri.parse(this) }.getOrNull() ?: return this
+    val scheme = uri.scheme ?: return this
+    val authority = uri.encodedAuthority ?: return this
+    if (scheme != "http" && scheme != "https") return this
+    val encodedPath = Uri.encode(uri.path.orEmpty(), "/")
+    val query = uri.encodedQuery?.let { "?$it" }.orEmpty()
+    val fragment = uri.encodedFragment?.let { "#$it" }.orEmpty()
+    return "$scheme://$authority$encodedPath$query$fragment"
+}
+
+private fun String.toGitLabBasicAuthHeader(): String {
+    val credentials = "oauth2:$this".toByteArray()
+    return "Basic ${Base64.encodeToString(credentials, Base64.NO_WRAP)}"
+}
+
+private fun extractIssueReferences(body: String, detail: WorkDetailData): List<IssueReference> {
+    val projectId = (detail.target as? DetailTarget.Issue)?.projectId
+        ?: (detail.target as? DetailTarget.MergeRequest)?.projectId
+        ?: return emptyList()
+
+    val linkedIssues = issueUrlPattern.findAll(body).mapNotNull { match ->
+        match.groups[1]?.value?.toLongOrNull()
+    }
+    val shorthandIssues = sameProjectIssuePattern.findAll(body).mapNotNull { match ->
+        match.groups[1]?.value?.toLongOrNull()
+    }
+
+    return (linkedIssues + shorthandIssues)
+        .distinct()
+        .map { issueIid ->
+            IssueReference(
+                projectId = projectId,
+                issueIid = issueIid,
+                label = "Open #$issueIid"
+            )
+        }
+        .toList()
+}
+
+private fun String.toGitLabProjectBaseUrl(): String =
+    substringBefore("/-/issues/")
+        .substringBefore("/-/merge_requests/")
+        .trimEnd('/')
+
+private fun String.isPreviewableImageUrl(): Boolean {
+    val path = substringBefore('?').substringBefore('#').lowercase()
+    return listOf(".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg").any { path.endsWith(it) }
+}
+
+private fun String.isSvgUrl(): Boolean =
+    substringBefore('?').substringBefore('#').lowercase().endsWith(".svg")
 
 @Composable
 private fun HomeNavRow(section: WorkSection, count: Int, onSectionChange: (WorkSection) -> Unit) {
@@ -948,7 +1216,9 @@ private fun GroupScreen(
 @Composable
 private fun WorkDetailScreen(
     state: LoadState<WorkDetailData>,
+    session: GitLabSession,
     onBack: () -> Unit,
+    onIssueReferenceClick: (Long, Long) -> Unit,
     onComment: (String) -> Unit,
     onUpdateIssue: (Boolean, String) -> Unit
 ) {
@@ -1054,7 +1324,12 @@ private fun WorkDetailScreen(
                                 title = note.author?.name ?: note.author?.username ?: "GitLab",
                                 meta = note.createdAt ?: ""
                             ) {
-                                Text(note.body)
+                                NoteBody(
+                                    body = note.body,
+                                    session = session,
+                                    detail = data,
+                                    onIssueReferenceClick = onIssueReferenceClick
+                                )
                             }
                         }
                     }

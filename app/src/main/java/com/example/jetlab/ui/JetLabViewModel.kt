@@ -35,8 +35,8 @@ data class DashboardData(
     val user: GitLabUser,
     val projects: List<GitLabProject> = emptyList(),
     val groups: List<GitLabGroup> = emptyList(),
-    val workItems: List<GitLabIssue> = emptyList(),
     val assignedWorkItems: List<GitLabIssue> = emptyList(),
+    val assignedCompletedWorkItems: List<GitLabIssue> = emptyList(),
     val assignedMergeRequests: List<GitLabMergeRequest> = emptyList(),
     val todos: List<GitLabTodo> = emptyList(),
     val events: List<GitLabEvent> = emptyList()
@@ -61,6 +61,7 @@ data class WorkDetailData(
     val title: String,
     val subtitle: String,
     val state: String,
+    val webUrl: String? = null,
     val labels: List<String> = emptyList(),
     val notes: List<GitLabNote> = emptyList()
 )
@@ -128,16 +129,16 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                             sessionStore.saveAssignedWorkItems(data.assignedWorkItems)
                             emit(LoadState.Success(data))
 
+                            data = data.copy(assignedCompletedWorkItems = runCatching { GitLabRepository(active).assignedIssues(data.user.id, "closed") }.getOrDefault(data.assignedCompletedWorkItems))
+                            sessionStore.saveAssignedCompletedWorkItems(data.assignedCompletedWorkItems)
+                            emit(LoadState.Success(data))
+
                             data = data.copy(assignedMergeRequests = runCatching { GitLabRepository(active).assignedMergeRequests(data.user.id) }.getOrDefault(data.assignedMergeRequests))
                             sessionStore.saveAssignedMergeRequests(data.assignedMergeRequests)
                             emit(LoadState.Success(data))
 
                             data = data.copy(groups = runCatching { GitLabRepository(active).groups("") }.getOrDefault(data.groups))
                             sessionStore.saveGroups(data.groups)
-                            emit(LoadState.Success(data))
-
-                            data = data.copy(workItems = runCatching { GitLabRepository(active).workItems("") }.getOrDefault(data.workItems))
-                            sessionStore.saveWorkItems(data.workItems)
                             emit(LoadState.Success(data))
 
                             data = data.copy(projects = runCatching { GitLabRepository(active).projects("") }.getOrDefault(data.projects))
@@ -316,6 +317,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                             title = "#${issue.iid} ${issue.title}",
                             subtitle = "Issue in project ${target.projectId}",
                             state = issue.state,
+                            webUrl = issue.webUrl,
                             labels = issue.labels,
                             notes = repo.issueNotes(target.projectId, target.issueIid)
                         )
@@ -327,6 +329,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                             title = "!${mr.iid} ${mr.title}",
                             subtitle = "${mr.sourceBranch} into ${mr.targetBranch}",
                             state = mr.state,
+                            webUrl = mr.webUrl,
                             notes = repo.mergeRequestNotes(target.projectId, target.mergeRequestIid)
                         )
                     }
@@ -342,8 +345,8 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         copy(
             projects = cache.projects,
             groups = cache.groups,
-            workItems = cache.workItems,
             assignedWorkItems = cache.assignedWorkItems,
+            assignedCompletedWorkItems = cache.assignedCompletedWorkItems,
             assignedMergeRequests = cache.assignedMergeRequests,
             todos = cache.todos,
             events = cache.events

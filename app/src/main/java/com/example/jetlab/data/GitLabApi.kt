@@ -65,25 +65,14 @@ class GitLabApi(
             parameter("per_page", 100)
         }
 
-    suspend fun assignedIssues(userId: Long): List<GitLabIssue> =
+    suspend fun assignedIssues(userId: Long, state: String = "opened"): List<GitLabIssue> =
         getList("issues") {
             parameter("scope", "all")
-            parameter("state", "opened")
+            parameter("state", state)
             parameter("assignee_id", userId)
             parameter("order_by", "updated_at")
             parameter("sort", "desc")
             parameter("per_page", 100)
-        }
-
-    suspend fun workItems(query: String): List<GitLabIssue> =
-        getList("issues") {
-            parameter("membership", true)
-            parameter("scope", "all")
-            parameter("state", "opened")
-            parameter("order_by", "updated_at")
-            parameter("sort", "desc")
-            parameter("per_page", 100)
-            if (query.isNotBlank()) parameter("search", query)
         }
 
     suspend fun assignedMergeRequests(userId: Long): List<GitLabMergeRequest> =
