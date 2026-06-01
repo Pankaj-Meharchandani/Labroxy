@@ -13,6 +13,7 @@ class GitLabRepository(
     suspend fun assignedMergeRequests(userId: Long): List<GitLabMergeRequest> = api.assignedMergeRequests(userId)
     suspend fun events(): List<GitLabEvent> = api.events()
     suspend fun project(projectId: Long): GitLabProject = api.project(projectId)
+    suspend fun project(projectPath: String): GitLabProject = api.project(projectPath)
     suspend fun groupProjects(groupId: Long): List<GitLabProject> = api.groupProjects(groupId)
     suspend fun subgroups(groupId: Long): List<GitLabGroup> = api.subgroups(groupId)
     suspend fun groupIssues(groupId: Long): List<GitLabIssue> = api.groupIssues(groupId)

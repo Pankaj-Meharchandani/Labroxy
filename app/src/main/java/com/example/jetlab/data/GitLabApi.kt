@@ -17,6 +17,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import java.net.URLEncoder
 import kotlinx.serialization.json.Json
 
 class GitLabApi(
@@ -91,6 +92,9 @@ class GitLabApi(
         }
 
     suspend fun project(projectId: Long): GitLabProject = get("projects/$projectId")
+
+    suspend fun project(projectPath: String): GitLabProject =
+        get("projects/${projectPath.gitLabPathEncoded()}")
 
     suspend fun groupProjects(groupId: Long): List<GitLabProject> =
         getList("groups/$groupId/projects") {
@@ -241,3 +245,6 @@ class GitLabApi(
         return items
     }
 }
+
+private fun String.gitLabPathEncoded(): String =
+    URLEncoder.encode(this, Charsets.UTF_8.name()).replace("+", "%20")

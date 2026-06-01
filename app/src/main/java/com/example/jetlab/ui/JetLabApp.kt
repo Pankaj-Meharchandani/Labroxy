@@ -250,7 +250,7 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
                     state = detail,
                     session = session,
                     onBack = { screen = Screen.Dashboard },
-                    onIssueReferenceClick = viewModel::loadIssue,
+                    onIssueReferenceClick = viewModel::loadIssueReference,
                     onComment = viewModel::addComment,
                     onUpdateIssue = viewModel::updateIssueStatusAndLabels
                 )
@@ -834,6 +834,7 @@ private data class CommentAttachment(
 )
 
 private data class IssueReference(
+    val projectPath: String?,
     val projectId: Long,
     val issueIid: Long,
     val label: String
@@ -844,7 +845,7 @@ private fun NoteBody(
     body: String,
     session: GitLabSession,
     detail: WorkDetailData,
-    onIssueReferenceClick: (Long, Long) -> Unit
+    onIssueReferenceClick: (String?, Long, Long) -> Unit
 ) {
     val attachments = remember(body, session.host, detail.webUrl) {
         extractCommentAttachments(body, session.host, detail.webUrl)
@@ -879,7 +880,13 @@ private fun NoteBody(
             ) {
                 issueReferences.forEach { reference ->
                     AssistChip(
-                        onClick = { onIssueReferenceClick(reference.projectId, reference.issueIid) },
+                        onClick = {
+                            onIssueReferenceClick(
+                                reference.projectPath,
+                                reference.projectId,
+                                reference.issueIid
+                            )
+                        },
                         leadingIcon = { Icon(Icons.Outlined.TaskAlt, null, Modifier.size(16.dp)) },
                         label = { Text(reference.label) }
                     )
@@ -959,7 +966,8 @@ private val markdownLinkPattern = Regex("""!?\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?
 private val markdownImagePattern = Regex("""!\[[^\]]*]\([^)]+\)(?:\{[^}]*\})?""")
 private val bareUrlPattern = Regex("""https?://[^\s)]+""")
 private val sameProjectIssuePattern = Regex("""(?<![\w/])#(\d+)""")
-private val issueUrlPattern = Regex("""/-/issues/(\d+)""")
+private val crossProjectIssuePattern = Regex("""(?<![\w/.-])([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)#(\d+)""")
+private val issueUrlPattern = Regex("""(?:https?://[^/\s)]+/)?([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)/-/issues/(\d+)""")
 
 private fun String.stripPreviewedMarkdownImages(): String =
     replace(markdownImagePattern, "")
@@ -1003,21 +1011,37 @@ private fun extractIssueReferences(body: String, detail: WorkDetailData): List<I
         ?: return emptyList()
 
     val linkedIssues = issueUrlPattern.findAll(body).mapNotNull { match ->
-        match.groups[1]?.value?.toLongOrNull()
+        val projectPath = match.groups[1]?.value ?: return@mapNotNull null
+        val issueIid = match.groups[2]?.value?.toLongOrNull() ?: return@mapNotNull null
+        IssueReference(
+            projectPath = projectPath,
+            projectId = projectId,
+            issueIid = issueIid,
+            label = "Open $projectPath#$issueIid"
+        )
+    }
+    val crossProjectIssues = crossProjectIssuePattern.findAll(body).mapNotNull { match ->
+        val projectPath = match.groups[1]?.value ?: return@mapNotNull null
+        val issueIid = match.groups[2]?.value?.toLongOrNull() ?: return@mapNotNull null
+        IssueReference(
+            projectPath = projectPath,
+            projectId = projectId,
+            issueIid = issueIid,
+            label = "Open $projectPath#$issueIid"
+        )
     }
     val shorthandIssues = sameProjectIssuePattern.findAll(body).mapNotNull { match ->
-        match.groups[1]?.value?.toLongOrNull()
+        val issueIid = match.groups[1]?.value?.toLongOrNull() ?: return@mapNotNull null
+        IssueReference(
+            projectPath = null,
+            projectId = projectId,
+            issueIid = issueIid,
+            label = "Open #$issueIid"
+        )
     }
 
-    return (linkedIssues + shorthandIssues)
-        .distinct()
-        .map { issueIid ->
-            IssueReference(
-                projectId = projectId,
-                issueIid = issueIid,
-                label = "Open #$issueIid"
-            )
-        }
+    return (linkedIssues + crossProjectIssues + shorthandIssues)
+        .distinctBy { "${it.projectPath.orEmpty()}#${it.issueIid}" }
         .toList()
 }
 
@@ -1218,7 +1242,7 @@ private fun WorkDetailScreen(
     state: LoadState<WorkDetailData>,
     session: GitLabSession,
     onBack: () -> Unit,
-    onIssueReferenceClick: (Long, Long) -> Unit,
+    onIssueReferenceClick: (String?, Long, Long) -> Unit,
     onComment: (String) -> Unit,
     onUpdateIssue: (Boolean, String) -> Unit
 ) {

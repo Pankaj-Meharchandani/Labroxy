@@ -241,6 +241,26 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         loadDetail(DetailTarget.Issue(projectId, issueIid))
     }
 
+    fun loadIssueReference(projectPath: String?, fallbackProjectId: Long, issueIid: Long) {
+        if (projectPath.isNullOrBlank()) {
+            loadIssue(fallbackProjectId, issueIid)
+            return
+        }
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
+            val active = session.value
+            _detail.value = LoadState.Loading
+            runCatching {
+                val repo = GitLabRepository(active)
+                val projectId = repo.project(projectPath).id
+                detailDataForTarget(repo, DetailTarget.Issue(projectId, issueIid))
+            }.fold(
+                onSuccess = { _detail.value = LoadState.Success(it) },
+                onFailure = { _detail.value = LoadState.Error(it.toFriendlyMessage()) }
+            )
+        }
+    }
+
     fun loadMergeRequest(projectId: Long, mergeRequestIid: Long) {
         loadDetail(DetailTarget.MergeRequest(projectId, mergeRequestIid))
     }
@@ -309,37 +329,40 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             _detail.value = LoadState.Loading
             runCatching {
                 val repo = GitLabRepository(active)
-                when (target) {
-                    is DetailTarget.Issue -> {
-                        val issue = repo.issue(target.projectId, target.issueIid)
-                        WorkDetailData(
-                            target = target,
-                            title = "#${issue.iid} ${issue.title}",
-                            subtitle = "Issue in project ${target.projectId}",
-                            state = issue.state,
-                            webUrl = issue.webUrl,
-                            labels = issue.labels,
-                            notes = repo.issueNotes(target.projectId, target.issueIid)
-                        )
-                    }
-                    is DetailTarget.MergeRequest -> {
-                        val mr = repo.mergeRequest(target.projectId, target.mergeRequestIid)
-                        WorkDetailData(
-                            target = target,
-                            title = "!${mr.iid} ${mr.title}",
-                            subtitle = "${mr.sourceBranch} into ${mr.targetBranch}",
-                            state = mr.state,
-                            webUrl = mr.webUrl,
-                            notes = repo.mergeRequestNotes(target.projectId, target.mergeRequestIid)
-                        )
-                    }
-                }
+                detailDataForTarget(repo, target)
             }.fold(
                 onSuccess = { _detail.value = LoadState.Success(it) },
                 onFailure = { _detail.value = LoadState.Error(it.toFriendlyMessage()) }
             )
         }
     }
+
+    private suspend fun detailDataForTarget(repo: GitLabRepository, target: DetailTarget): WorkDetailData =
+        when (target) {
+            is DetailTarget.Issue -> {
+                val issue = repo.issue(target.projectId, target.issueIid)
+                WorkDetailData(
+                    target = target,
+                    title = "#${issue.iid} ${issue.title}",
+                    subtitle = "Issue in project ${target.projectId}",
+                    state = issue.state,
+                    webUrl = issue.webUrl,
+                    labels = issue.labels,
+                    notes = repo.issueNotes(target.projectId, target.issueIid)
+                )
+            }
+            is DetailTarget.MergeRequest -> {
+                val mr = repo.mergeRequest(target.projectId, target.mergeRequestIid)
+                WorkDetailData(
+                    target = target,
+                    title = "!${mr.iid} ${mr.title}",
+                    subtitle = "${mr.sourceBranch} into ${mr.targetBranch}",
+                    state = mr.state,
+                    webUrl = mr.webUrl,
+                    notes = repo.mergeRequestNotes(target.projectId, target.mergeRequestIid)
+                )
+            }
+        }
 
     private fun DashboardData.withCache(cache: CachedDashboard): DashboardData =
         copy(
