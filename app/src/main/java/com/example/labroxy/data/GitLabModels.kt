@@ -1,4 +1,4 @@
-package com.example.jetlab.data
+package com.example.labroxy.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

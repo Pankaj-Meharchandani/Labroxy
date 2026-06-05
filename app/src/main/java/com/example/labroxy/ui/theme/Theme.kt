@@ -1,4 +1,4 @@
-package com.example.jetlab.ui.theme
+package com.example.labroxy.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme

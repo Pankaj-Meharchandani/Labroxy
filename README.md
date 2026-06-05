@@ -83,13 +83,13 @@ To run Labroxy, you need:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/Pankaj-Meharchandani/JetLab.git
-   cd JetLab
+   git clone https://github.com/Pankaj-Meharchandani/Labroxy.git
+   cd Labroxy
    ```
 
 2. **Open in Android Studio:**
    - Launch Android Studio and choose **Open an existing project**.
-   - Select the `JetLab` root directory.
+   - Select the `Labroxy` root directory.
    - Let Gradle sync and download all dependencies automatically.
 
 3. **Run the App:**

@@ -1,4 +1,4 @@
-package com.example.jetlab.data
+package com.example.labroxy.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
@@ -11,7 +11,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.dataStore by preferencesDataStore("jetlab_session")
+private val Context.dataStore by preferencesDataStore("labroxy_session")
 
 data class GitLabSession(
     val host: String = "https://gitlab.com",

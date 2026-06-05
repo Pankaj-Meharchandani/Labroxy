@@ -1,4 +1,4 @@
-package com.example.jetlab.ui
+package com.example.labroxy.ui
 
 sealed interface LoadState<out T> {
     data object Loading : LoadState<Nothing>

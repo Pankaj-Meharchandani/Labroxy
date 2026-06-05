@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.jetlab"
+    namespace = "com.example.labroxy"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.jetlab"
+        applicationId = "com.example.labroxy"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

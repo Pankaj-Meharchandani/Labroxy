@@ -1,4 +1,4 @@
-package com.example.jetlab.data
+package com.example.labroxy.data
 
 class GitLabRepository(
     private val session: GitLabSession

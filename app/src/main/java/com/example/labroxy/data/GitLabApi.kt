@@ -1,4 +1,4 @@
-package com.example.jetlab.data
+package com.example.labroxy.data
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body

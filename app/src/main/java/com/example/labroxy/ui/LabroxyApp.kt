@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalLayoutApi::class)
 
-package com.example.jetlab.ui
+package com.example.labroxy.ui
 
 import android.net.Uri
 import android.util.Base64
@@ -136,18 +136,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.decode.SvgDecoder
 import coil.request.ImageRequest
-import com.example.jetlab.data.AppSettings
-import com.example.jetlab.data.GitLabBoard
-import com.example.jetlab.data.GitLabCommit
-import com.example.jetlab.data.GitLabEvent
-import com.example.jetlab.data.GitLabGroup
-import com.example.jetlab.data.GitLabIssue
-import com.example.jetlab.data.GitLabMergeRequest
-import com.example.jetlab.data.GitLabProject
-import com.example.jetlab.data.GitLabSession
-import com.example.jetlab.data.GitLabTodo
-import com.example.jetlab.data.GitLabUser
-import com.example.jetlab.ui.theme.LabroxyTheme
+import com.example.labroxy.data.AppSettings
+import com.example.labroxy.data.GitLabBoard
+import com.example.labroxy.data.GitLabCommit
+import com.example.labroxy.data.GitLabEvent
+import com.example.labroxy.data.GitLabGroup
+import com.example.labroxy.data.GitLabIssue
+import com.example.labroxy.data.GitLabMergeRequest
+import com.example.labroxy.data.GitLabProject
+import com.example.labroxy.data.GitLabSession
+import com.example.labroxy.data.GitLabTodo
+import com.example.labroxy.data.GitLabUser
+import com.example.labroxy.ui.theme.LabroxyTheme
 import kotlinx.coroutines.launch
 
 private enum class Screen { Loading, SignIn, Dashboard, Project, Group, Detail, User, About }
@@ -1243,7 +1243,7 @@ private fun AboutScreen(onBack: () -> Unit) {
 
             item {
                 Text(
-                    text = "© 2026 JetLab Project. Open source Apache 2.0 License.",
+                    text = "© 2026 Labroxy Project. Open source Apache 2.0 License.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.padding(vertical = 16.dp)
