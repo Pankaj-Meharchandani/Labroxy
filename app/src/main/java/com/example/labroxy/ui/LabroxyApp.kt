@@ -3,7 +3,6 @@
 package com.example.labroxy.ui
 
 import android.net.Uri
-import android.util.Base64
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
@@ -134,6 +133,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.decode.SvgDecoder
 import coil.request.ImageRequest
 import com.example.labroxy.data.AppSettings
@@ -1375,8 +1375,20 @@ private fun androidx.compose.foundation.lazy.LazyListScope.eventItems(events: Li
 
 private data class CommentAttachment(
     val url: String,
+    val openUrl: String,
     val label: String,
     val isImage: Boolean
+)
+
+private data class RawCommentAttachment(
+    val url: String,
+    val label: String?,
+    val isImageHint: Boolean
+)
+
+private data class ResolvedCommentAttachment(
+    val loadUrl: String,
+    val openUrl: String
 )
 
 private data class IssueReference(
@@ -1394,8 +1406,8 @@ private fun NoteBody(
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
     onUserClick: (String) -> Unit
 ) {
-    val attachments = remember(body, session.host, detail.webUrl) {
-        extractCommentAttachments(body, session.host, detail.webUrl)
+    val attachments = remember(body, session.host, detail.webUrl, detail.target) {
+        extractCommentAttachments(body, session.host, detail.webUrl, detail.target.projectId())
     }
     val displayBody = remember(body) { body.stripPreviewedMarkdownImages() }
     val issueReferences = remember(body, detail.target, detail.webUrl) {
@@ -1454,31 +1466,56 @@ private fun CommentImagePreview(attachment: CommentAttachment, token: String) {
         val builder = ImageRequest.Builder(context)
             .data(attachment.url)
             .addHeader("PRIVATE-TOKEN", token)
-            .setHeader("Authorization", token.toGitLabBasicAuthHeader())
             .crossfade(true)
-        if (attachment.url.isSvgUrl()) {
-            builder.decoderFactory(SvgDecoder.Factory())
-        }
+            .decoderFactory(SvgDecoder.Factory())
         builder.build()
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { uriHandler.openUri(attachment.url) },
+            .clickable { uriHandler.openUri(attachment.openUrl) },
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        AsyncImage(
+        SubcomposeAsyncImage(
             model = request,
             contentDescription = attachment.label,
             contentScale = ContentScale.Fit,
+            loading = {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp)
+                }
+            },
+            error = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.InsertDriveFile,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        attachment.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 120.dp, max = 280.dp)
                 .aspectRatio(16f / 9f)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
         )
     }
 }
@@ -1488,32 +1525,59 @@ private fun CommentFileChip(attachment: CommentAttachment) {
     val uriHandler = LocalUriHandler.current
 
     AssistChip(
-        onClick = { uriHandler.openUri(attachment.url) },
+        onClick = { uriHandler.openUri(attachment.openUrl) },
         leadingIcon = { Icon(Icons.Outlined.InsertDriveFile, null, Modifier.size(16.dp)) },
         label = { Text(attachment.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         modifier = Modifier.widthIn(max = 220.dp)
     )
 }
 
-private fun extractCommentAttachments(body: String, host: String, detailWebUrl: String?): List<CommentAttachment> {
-    val markdownUrls = markdownLinkPattern.findAll(body).mapNotNull { it.groups[1]?.value }
-    val bareUrls = bareUrlPattern.findAll(body).map { it.value.trimEnd('.', ',', ')') }
-    return (markdownUrls + bareUrls)
-        .mapNotNull { raw -> resolveAttachmentUrl(raw, host, detailWebUrl) }
-        .distinct()
-        .map { url ->
-            val normalizedUrl = url.normalizeHttpUrl()
+private fun extractCommentAttachments(
+    body: String,
+    host: String,
+    detailWebUrl: String?,
+    projectId: Long?
+): List<CommentAttachment> {
+    val markdownImages = markdownImagePattern.findAll(body).mapNotNull { match ->
+        val label = match.groups[1]?.value?.takeIf { it.isNotBlank() }
+        val url = match.groups[2]?.value ?: return@mapNotNull null
+        RawCommentAttachment(url = url, label = label, isImageHint = true)
+    }
+    val markdownLinks = markdownLinkPattern.findAll(body).mapNotNull { match ->
+        val label = match.groups[1]?.value?.takeIf { it.isNotBlank() }
+        val url = match.groups[2]?.value ?: return@mapNotNull null
+        RawCommentAttachment(url = url, label = label, isImageHint = false)
+    }
+    val htmlImages = htmlImagePattern.findAll(body).mapNotNull { match ->
+        val url = match.groups[2]?.value ?: return@mapNotNull null
+        RawCommentAttachment(url = url, label = null, isImageHint = true)
+    }
+    val bareUrls = bareUrlPattern.findAll(body).map {
+        RawCommentAttachment(url = it.value.trimEnd('.', ',', ')'), label = null, isImageHint = false)
+    }
+
+    return (markdownImages + markdownLinks + htmlImages + bareUrls)
+        .mapNotNull { raw ->
+            val resolved = resolveAttachmentUrl(raw.url, host, detailWebUrl, projectId) ?: return@mapNotNull null
+            raw to resolved
+        }
+        .distinctBy { (_, resolved) -> resolved.loadUrl.normalizeHttpUrl() }
+        .map { (raw, resolved) ->
+            val normalizedUrl = resolved.loadUrl.normalizeHttpUrl()
             CommentAttachment(
                 url = normalizedUrl,
-                label = url.substringBefore('?').substringBefore('#').substringAfterLast('/').ifBlank { "Attachment" },
-                isImage = normalizedUrl.isPreviewableImageUrl()
+                openUrl = resolved.openUrl.normalizeHttpUrl(),
+                label = raw.label
+                    ?: resolved.openUrl.substringBefore('?').substringBefore('#').substringAfterLast('/').ifBlank { "Attachment" },
+                isImage = raw.isImageHint || normalizedUrl.isPreviewableImageUrl()
             )
         }
         .toList()
 }
 
-private val markdownLinkPattern = Regex("""!?\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)""")
-private val markdownImagePattern = Regex("""!\[[^\]]*]\([^)]+\)(?:\{[^}]*\})?""")
+private val markdownImagePattern = Regex("""!\[([^\]]*)]\(([^)\s]+)(?:\s+"[^"]*")?\)(?:\{[^}]*\})?""")
+private val markdownLinkPattern = Regex("""(?<!!)\[([^\]]*)]\(([^)\s]+)(?:\s+"[^"]*")?\)""")
+private val htmlImagePattern = Regex("""<img\b[^>]*\bsrc=(["'])(.*?)\1[^>]*>""", RegexOption.IGNORE_CASE)
 private val bareUrlPattern = Regex("""https?://[^\s)]+""")
 private val sameProjectIssuePattern = Regex("""(?<![\w/])#(\d+)""")
 private val crossProjectIssuePattern = Regex("""(?<![\w/.-])([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)#(\d+)""")
@@ -1521,22 +1585,37 @@ private val issueUrlPattern = Regex("""(?:https?://[^/\s)]+/)?([A-Za-z0-9_.-]+(?
 
 private fun String.stripPreviewedMarkdownImages(): String =
     replace(markdownImagePattern, "")
+        .replace(htmlImagePattern, "")
         .lines()
         .joinToString("\n") { it.trimEnd() }
         .trim()
 
-private fun resolveAttachmentUrl(rawUrl: String, host: String, detailWebUrl: String?): String? {
+private fun resolveAttachmentUrl(
+    rawUrl: String,
+    host: String,
+    detailWebUrl: String?,
+    projectId: Long?
+): ResolvedCommentAttachment? {
     val cleaned = rawUrl.trim().trim('<', '>')
     if (cleaned.isBlank()) return null
+    val normalizedHost = host.trim().removeSuffix("/")
     val projectBaseUrl = detailWebUrl?.toGitLabProjectBaseUrl()
-    return when {
+    val webUrl = when {
         cleaned.startsWith("http://") || cleaned.startsWith("https://") -> cleaned
         cleaned.startsWith("/uploads/") && projectBaseUrl != null -> projectBaseUrl + cleaned
         cleaned.startsWith("uploads/") && projectBaseUrl != null -> "$projectBaseUrl/$cleaned"
-        cleaned.startsWith("/") -> host.trim().removeSuffix("/") + cleaned
-        cleaned.startsWith("uploads/") -> host.trim().removeSuffix("/") + "/" + cleaned
+        cleaned.startsWith("/") -> normalizedHost + cleaned
+        cleaned.startsWith("uploads/") -> "$normalizedHost/$cleaned"
         else -> null
+    } ?: return null
+
+    val uploadPath = webUrl.gitLabUploadPath()
+    val loadUrl = if (projectId != null && uploadPath != null) {
+        "$normalizedHost/api/v4/projects/$projectId/uploads/$uploadPath"
+    } else {
+        webUrl
     }
+    return ResolvedCommentAttachment(loadUrl = loadUrl, openUrl = webUrl)
 }
 
 private fun String.normalizeHttpUrl(): String {
@@ -1548,11 +1627,6 @@ private fun String.normalizeHttpUrl(): String {
     val query = uri.encodedQuery?.let { "?$it" }.orEmpty()
     val fragment = uri.encodedFragment?.let { "#$it" }.orEmpty()
     return "$scheme://$authority$encodedPath$query$fragment"
-}
-
-private fun String.toGitLabBasicAuthHeader(): String {
-    val credentials = "oauth2:$this".toByteArray()
-    return "Basic ${Base64.encodeToString(credentials, Base64.NO_WRAP)}"
 }
 
 private fun extractIssueReferences(body: String, detail: WorkDetailData): List<IssueReference> {
@@ -1600,13 +1674,26 @@ private fun String.toGitLabProjectBaseUrl(): String =
         .substringBefore("/-/merge_requests/")
         .trimEnd('/')
 
+private fun String.gitLabUploadPath(): String? {
+    val path = runCatching { Uri.parse(this).encodedPath }.getOrNull() ?: return null
+    val marker = "/uploads/"
+    val markerIndex = path.indexOf(marker)
+    if (markerIndex < 0) return null
+    val uploadPath = path.substring(markerIndex + marker.length)
+    if (uploadPath.count { it == '/' } < 1) return null
+    return uploadPath
+}
+
+private fun DetailTarget.projectId(): Long =
+    when (this) {
+        is DetailTarget.Issue -> projectId
+        is DetailTarget.MergeRequest -> projectId
+    }
+
 private fun String.isPreviewableImageUrl(): Boolean {
     val path = substringBefore('?').substringBefore('#').lowercase()
     return listOf(".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg").any { path.endsWith(it) }
 }
-
-private fun String.isSvgUrl(): Boolean =
-    substringBefore('?').substringBefore('#').lowercase().endsWith(".svg")
 
 @Composable
 private fun HomeNavRow(section: WorkSection, count: Int, onSectionChange: (WorkSection) -> Unit) {
