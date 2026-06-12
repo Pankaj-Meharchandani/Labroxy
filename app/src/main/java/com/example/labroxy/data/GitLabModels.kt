@@ -118,11 +118,20 @@ data class GitLabEvent(
 data class GitLabNote(
     val id: Long,
     val body: String,
+    val type: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     val author: GitLabUser? = null,
     val system: Boolean = false,
-    val resolvable: Boolean = false
+    val resolvable: Boolean = false,
+    val resolved: Boolean? = null
+)
+
+@Serializable
+data class GitLabDiscussion(
+    val id: String,
+    @SerialName("individual_note") val individualNote: Boolean = false,
+    val notes: List<GitLabNote> = emptyList()
 )
 
 @Serializable

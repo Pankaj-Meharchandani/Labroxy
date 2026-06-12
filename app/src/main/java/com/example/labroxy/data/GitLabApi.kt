@@ -134,23 +134,37 @@ class GitLabApi(
     suspend fun mergeRequest(projectId: Long, mergeRequestIid: Long): GitLabMergeRequest =
         get("projects/$projectId/merge_requests/$mergeRequestIid")
 
-    suspend fun issueNotes(projectId: Long, issueIid: Long): List<GitLabNote> =
-        getList("projects/$projectId/issues/$issueIid/notes") {
-            parameter("sort", "asc")
+    suspend fun issueDiscussions(projectId: Long, issueIid: Long): List<GitLabDiscussion> =
+        getList("projects/$projectId/issues/$issueIid/discussions") {
             parameter("per_page", 100)
         }
 
-    suspend fun mergeRequestNotes(projectId: Long, mergeRequestIid: Long): List<GitLabNote> =
-        getList("projects/$projectId/merge_requests/$mergeRequestIid/notes") {
-            parameter("sort", "asc")
+    suspend fun mergeRequestDiscussions(projectId: Long, mergeRequestIid: Long): List<GitLabDiscussion> =
+        getList("projects/$projectId/merge_requests/$mergeRequestIid/discussions") {
             parameter("per_page", 100)
         }
 
-    suspend fun addIssueNote(projectId: Long, issueIid: Long, body: String): GitLabNote =
-        post("projects/$projectId/issues/$issueIid/notes", mapOf("body" to body))
+    suspend fun addIssueDiscussion(projectId: Long, issueIid: Long, body: String): GitLabDiscussion =
+        post("projects/$projectId/issues/$issueIid/discussions", mapOf("body" to body))
 
-    suspend fun addMergeRequestNote(projectId: Long, mergeRequestIid: Long, body: String): GitLabNote =
-        post("projects/$projectId/merge_requests/$mergeRequestIid/notes", mapOf("body" to body))
+    suspend fun addMergeRequestDiscussion(projectId: Long, mergeRequestIid: Long, body: String): GitLabDiscussion =
+        post("projects/$projectId/merge_requests/$mergeRequestIid/discussions", mapOf("body" to body))
+
+    suspend fun addIssueDiscussionNote(
+        projectId: Long,
+        issueIid: Long,
+        discussionId: String,
+        body: String
+    ): GitLabNote =
+        post("projects/$projectId/issues/$issueIid/discussions/$discussionId/notes", mapOf("body" to body))
+
+    suspend fun addMergeRequestDiscussionNote(
+        projectId: Long,
+        mergeRequestIid: Long,
+        discussionId: String,
+        body: String
+    ): GitLabNote =
+        post("projects/$projectId/merge_requests/$mergeRequestIid/discussions/$discussionId/notes", mapOf("body" to body))
 
     suspend fun updateIssue(projectId: Long, issueIid: Long, stateEvent: String?, labels: String?): GitLabIssue =
         put("projects/$projectId/issues/$issueIid") {

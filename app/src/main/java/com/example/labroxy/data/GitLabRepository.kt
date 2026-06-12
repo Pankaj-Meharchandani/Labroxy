@@ -20,10 +20,22 @@ class GitLabRepository(
     suspend fun groupIssues(groupId: Long): List<GitLabIssue> = api.groupIssues(groupId)
     suspend fun issue(projectId: Long, issueIid: Long): GitLabIssue = api.issue(projectId, issueIid)
     suspend fun mergeRequest(projectId: Long, mergeRequestIid: Long): GitLabMergeRequest = api.mergeRequest(projectId, mergeRequestIid)
-    suspend fun issueNotes(projectId: Long, issueIid: Long): List<GitLabNote> = api.issueNotes(projectId, issueIid)
-    suspend fun mergeRequestNotes(projectId: Long, mergeRequestIid: Long): List<GitLabNote> = api.mergeRequestNotes(projectId, mergeRequestIid)
-    suspend fun addIssueNote(projectId: Long, issueIid: Long, body: String): GitLabNote = api.addIssueNote(projectId, issueIid, body)
-    suspend fun addMergeRequestNote(projectId: Long, mergeRequestIid: Long, body: String): GitLabNote = api.addMergeRequestNote(projectId, mergeRequestIid, body)
+    suspend fun issueDiscussions(projectId: Long, issueIid: Long): List<GitLabDiscussion> = api.issueDiscussions(projectId, issueIid)
+    suspend fun mergeRequestDiscussions(projectId: Long, mergeRequestIid: Long): List<GitLabDiscussion> =
+        api.mergeRequestDiscussions(projectId, mergeRequestIid)
+    suspend fun addIssueDiscussion(projectId: Long, issueIid: Long, body: String): GitLabDiscussion =
+        api.addIssueDiscussion(projectId, issueIid, body)
+    suspend fun addMergeRequestDiscussion(projectId: Long, mergeRequestIid: Long, body: String): GitLabDiscussion =
+        api.addMergeRequestDiscussion(projectId, mergeRequestIid, body)
+    suspend fun addIssueDiscussionNote(projectId: Long, issueIid: Long, discussionId: String, body: String): GitLabNote =
+        api.addIssueDiscussionNote(projectId, issueIid, discussionId, body)
+    suspend fun addMergeRequestDiscussionNote(
+        projectId: Long,
+        mergeRequestIid: Long,
+        discussionId: String,
+        body: String
+    ): GitLabNote =
+        api.addMergeRequestDiscussionNote(projectId, mergeRequestIid, discussionId, body)
     suspend fun updateIssue(projectId: Long, issueIid: Long, stateEvent: String?, labels: String?): GitLabIssue =
         api.updateIssue(projectId, issueIid, stateEvent, labels)
     suspend fun issues(projectId: Long): List<GitLabIssue> = api.issues(projectId)

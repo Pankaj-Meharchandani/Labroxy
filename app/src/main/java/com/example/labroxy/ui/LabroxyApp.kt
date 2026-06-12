@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -139,10 +140,12 @@ import coil.request.ImageRequest
 import com.example.labroxy.data.AppSettings
 import com.example.labroxy.data.GitLabBoard
 import com.example.labroxy.data.GitLabCommit
+import com.example.labroxy.data.GitLabDiscussion
 import com.example.labroxy.data.GitLabEvent
 import com.example.labroxy.data.GitLabGroup
 import com.example.labroxy.data.GitLabIssue
 import com.example.labroxy.data.GitLabMergeRequest
+import com.example.labroxy.data.GitLabNote
 import com.example.labroxy.data.GitLabProject
 import com.example.labroxy.data.GitLabSession
 import com.example.labroxy.data.GitLabTodo
@@ -1398,6 +1401,11 @@ private data class IssueReference(
     val label: String
 )
 
+private data class ReplyTarget(
+    val discussionId: String,
+    val authorName: String
+)
+
 @Composable
 private fun NoteBody(
     body: String,
@@ -1880,12 +1888,24 @@ private fun WorkDetailScreen(
     session: GitLabSession,
     onBack: () -> Unit,
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
-    onComment: (String) -> Unit,
+    onComment: (String, String?) -> Unit,
     onUpdateIssue: (Boolean, String) -> Unit,
     onUserClick: (String) -> Unit
 ) {
     var comment by remember { mutableStateOf("") }
     var labels by remember { mutableStateOf("") }
+    var replyTarget by remember { mutableStateOf<ReplyTarget?>(null) }
+    val listState = rememberLazyListState()
+    val data = (state as? LoadState.Success)?.value
+
+    LaunchedEffect(data?.target, data?.discussions?.sumOf { it.notes.size }) {
+        val targetData = data ?: return@LaunchedEffect
+        val conversationItems = if (targetData.discussions.isEmpty()) 1 else targetData.discussions.size
+        val itemCount = 1 + (if (targetData.target is DetailTarget.Issue) 1 else 0) + conversationItems
+        if (itemCount > 0) {
+            listState.scrollToItem(itemCount - 1)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -1897,9 +1917,25 @@ private fun WorkDetailScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            if (data != null) {
+                CommentComposerBar(
+                    comment = comment,
+                    replyTarget = replyTarget,
+                    onCommentChange = { comment = it },
+                    onCancelReply = { replyTarget = null },
+                    onSubmit = {
+                        onComment(comment, replyTarget?.discussionId)
+                        comment = ""
+                        replyTarget = null
+                    }
+                )
+            }
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -1910,7 +1946,7 @@ private fun WorkDetailScreen(
                 LoadState.Loading -> item { LoadingBlock("Loading conversation") }
                 is LoadState.Error -> item { ErrorBlock(state.message) }
                 is LoadState.Success -> {
-                    val data = state.value
+                    val loaded = state.value
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -1919,84 +1955,240 @@ private fun WorkDetailScreen(
                         ) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text(
-                                    data.title,
+                                    loaded.title,
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text(data.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(loaded.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    MetricChip(Icons.Outlined.Tag, data.state)
-                                    data.labels.forEach { MetricChip(Icons.Outlined.Tag, it) }
+                                    MetricChip(Icons.Outlined.Tag, loaded.state)
+                                    loaded.labels.forEach { MetricChip(Icons.Outlined.Tag, it) }
                                 }
                             }
                         }
                     }
-                    if (data.target is DetailTarget.Issue) {
+                    if (loaded.target is DetailTarget.Issue) {
                         item {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(
-                                    value = labels.ifBlank { data.labels.joinToString(",") },
+                                    value = labels.ifBlank { loaded.labels.joinToString(",") },
                                     onValueChange = { labels = it },
                                     label = { Text("Labels, comma separated") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = { onUpdateIssue(false, labels.ifBlank { data.labels.joinToString(",") }) }) {
+                                    TextButton(onClick = { onUpdateIssue(false, labels.ifBlank { loaded.labels.joinToString(",") }) }) {
                                         Text("Reopen")
                                     }
-                                    Button(onClick = { onUpdateIssue(true, labels.ifBlank { data.labels.joinToString(",") }) }) {
+                                    Button(onClick = { onUpdateIssue(true, labels.ifBlank { loaded.labels.joinToString(",") }) }) {
                                         Text("Close / Save")
                                     }
                                 }
                             }
                         }
                     }
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = comment,
-                                onValueChange = { comment = it },
-                                label = { Text("Add a comment") },
-                                minLines = 3,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Button(
-                                onClick = {
-                                    onComment(comment)
-                                    comment = ""
-                                },
-                                enabled = comment.isNotBlank(),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Comment")
-                            }
-                        }
-                    }
-                    if (data.notes.isEmpty()) {
+                    if (loaded.discussions.isEmpty()) {
                         item { EmptyBlock("No conversation history yet.") }
                     } else {
-                        items(data.notes, key = { it.id }) { note ->
-                            ListCard(
-                                icon = Icons.Outlined.History,
-                                user = note.author,
-                                title = note.author?.name ?: note.author?.username ?: "GitLab",
-                                meta = note.createdAt ?: ""
-                            ) {
-                                NoteBody(
-                                    body = note.body,
-                                    session = session,
-                                    detail = data,
-                                    onIssueReferenceClick = onIssueReferenceClick,
-                                    onUserClick = onUserClick
-                                )
-                            }
+                        items(loaded.discussions, key = { it.id }) { discussion ->
+                            DiscussionCard(
+                                discussion = discussion,
+                                session = session,
+                                detail = loaded,
+                                onIssueReferenceClick = onIssueReferenceClick,
+                                onUserClick = onUserClick,
+                                onReply = { note ->
+                                    replyTarget = ReplyTarget(
+                                        discussionId = discussion.id,
+                                        authorName = note.author?.name ?: note.author?.username ?: "comment"
+                                    )
+                                }
+                            )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommentComposerBar(
+    comment: String,
+    replyTarget: ReplyTarget?,
+    onCommentChange: (String) -> Unit,
+    onCancelReply: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Surface(
+        tonalElevation = 3.dp,
+        shadowElevation = 6.dp,
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (replyTarget != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Replying to ${replyTarget.authorName}",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    TextButton(onClick = onCancelReply) {
+                        Text("Cancel")
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = comment,
+                onValueChange = onCommentChange,
+                label = { Text(if (replyTarget == null) "Add a comment" else "Add a reply") },
+                minLines = 1,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
+                onClick = onSubmit,
+                enabled = comment.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (replyTarget == null) "Comment" else "Reply")
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiscussionCard(
+    discussion: GitLabDiscussion,
+    session: GitLabSession,
+    detail: WorkDetailData,
+    onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onUserClick: (String) -> Unit,
+    onReply: (GitLabNote) -> Unit
+) {
+    val firstNote = discussion.notes.firstOrNull()
+    if (firstNote == null) {
+        EmptyBlock("Empty discussion")
+        return
+    }
+    val replies = discussion.notes.drop(1)
+
+    ListCard(
+        icon = Icons.Outlined.History,
+        user = firstNote.author,
+        title = firstNote.author?.name ?: firstNote.author?.username ?: "GitLab",
+        meta = firstNote.createdAt ?: ""
+    ) {
+        DiscussionNoteBody(
+            note = firstNote,
+            session = session,
+            detail = detail,
+            onIssueReferenceClick = onIssueReferenceClick,
+            onUserClick = onUserClick,
+            onReply = { onReply(firstNote) }
+        )
+        if (replies.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                replies.forEach { reply ->
+                    DiscussionReply(
+                        note = reply,
+                        session = session,
+                        detail = detail,
+                        onIssueReferenceClick = onIssueReferenceClick,
+                        onUserClick = onUserClick,
+                        onReply = { onReply(reply) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiscussionNoteBody(
+    note: GitLabNote,
+    session: GitLabSession,
+    detail: WorkDetailData,
+    onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onUserClick: (String) -> Unit,
+    onReply: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        NoteBody(
+            body = note.body,
+            session = session,
+            detail = detail,
+            onIssueReferenceClick = onIssueReferenceClick,
+            onUserClick = onUserClick
+        )
+        if (!note.system) {
+            TextButton(onClick = onReply) {
+                Text("Reply")
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiscussionReply(
+    note: GitLabNote,
+    session: GitLabSession,
+    detail: WorkDetailData,
+    onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onUserClick: (String) -> Unit,
+    onReply: () -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        UserAvatar(
+            user = note.author ?: GitLabUser(id = 0, username = "gitlab", name = "GitLab"),
+            size = 32
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    note.author?.name ?: note.author?.username ?: "GitLab",
+                    modifier = Modifier.weight(1f),
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    note.createdAt ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+            NoteBody(
+                body = note.body,
+                session = session,
+                detail = detail,
+                onIssueReferenceClick = onIssueReferenceClick,
+                onUserClick = onUserClick
+            )
+            if (!note.system) {
+                TextButton(onClick = onReply) {
+                    Text("Reply")
                 }
             }
         }

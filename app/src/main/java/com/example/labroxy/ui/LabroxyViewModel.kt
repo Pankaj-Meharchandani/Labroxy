@@ -6,11 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.labroxy.data.GitLabBoard
 import com.example.labroxy.data.GitLabBranch
 import com.example.labroxy.data.GitLabCommit
+import com.example.labroxy.data.GitLabDiscussion
 import com.example.labroxy.data.GitLabEvent
 import com.example.labroxy.data.GitLabGroup
 import com.example.labroxy.data.GitLabIssue
 import com.example.labroxy.data.GitLabMergeRequest
-import com.example.labroxy.data.GitLabNote
 import com.example.labroxy.data.GitLabProject
 import com.example.labroxy.data.GitLabRepository
 import com.example.labroxy.data.GitLabSession
@@ -63,7 +63,7 @@ data class WorkDetailData(
     val state: String,
     val webUrl: String? = null,
     val labels: List<String> = emptyList(),
-    val notes: List<GitLabNote> = emptyList()
+    val discussions: List<GitLabDiscussion> = emptyList()
 )
 
 data class GroupData(
@@ -314,7 +314,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun addComment(body: String) {
+    fun addComment(body: String, discussionId: String? = null) {
         val current = (_detail.value as? LoadState.Success)?.value ?: return
         if (body.isBlank()) return
         viewModelScope.launch {
@@ -322,8 +322,20 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             runCatching {
                 val repo = GitLabRepository(active)
                 when (val target = current.target) {
-                    is DetailTarget.Issue -> repo.addIssueNote(target.projectId, target.issueIid, body)
-                    is DetailTarget.MergeRequest -> repo.addMergeRequestNote(target.projectId, target.mergeRequestIid, body)
+                    is DetailTarget.Issue -> {
+                        if (discussionId == null) {
+                            repo.addIssueDiscussion(target.projectId, target.issueIid, body)
+                        } else {
+                            repo.addIssueDiscussionNote(target.projectId, target.issueIid, discussionId, body)
+                        }
+                    }
+                    is DetailTarget.MergeRequest -> {
+                        if (discussionId == null) {
+                            repo.addMergeRequestDiscussion(target.projectId, target.mergeRequestIid, body)
+                        } else {
+                            repo.addMergeRequestDiscussionNote(target.projectId, target.mergeRequestIid, discussionId, body)
+                        }
+                    }
                 }
             }.onSuccess {
                 loadDetail(current.target)
@@ -379,7 +391,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     state = issue.state,
                     webUrl = issue.webUrl,
                     labels = issue.labels,
-                    notes = repo.issueNotes(target.projectId, target.issueIid)
+                    discussions = repo.issueDiscussions(target.projectId, target.issueIid)
                 )
             }
             is DetailTarget.MergeRequest -> {
@@ -390,7 +402,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     subtitle = "${mr.sourceBranch} into ${mr.targetBranch}",
                     state = mr.state,
                     webUrl = mr.webUrl,
-                    notes = repo.mergeRequestNotes(target.projectId, target.mergeRequestIid)
+                    discussions = repo.mergeRequestDiscussions(target.projectId, target.mergeRequestIid)
                 )
             }
         }
