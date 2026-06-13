@@ -19,13 +19,15 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="gitlab.com" />
                 <data android:scheme="https" android:host="gitlab.e.foundation" />
+                <data android:scheme="http" android:host="gitlab.com" />
+                <data android:scheme="http" android:host="gitlab.e.foundation" />
             </intent-filter>
             <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" android:host="gitlab.e.foundation" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
     </application>

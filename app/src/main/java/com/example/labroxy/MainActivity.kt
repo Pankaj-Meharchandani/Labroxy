@@ -14,7 +14,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        deepLinkUrl = intent?.dataString
+        handleIntent(intent)
         setContent {
             LabroxyApp(deepLinkUrl = deepLinkUrl)
         }
@@ -23,6 +23,24 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        deepLinkUrl = intent.dataString
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        deepLinkUrl = when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.dataString
+            Intent.ACTION_SEND -> {
+                if (intent.type == "text/plain") {
+                    val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+                    text?.let { extractUrl(it) }
+                } else null
+            }
+            else -> null
+        }
+    }
+
+    private fun extractUrl(text: String): String? {
+        val pattern = Regex("""https?://[^\s]+""")
+        return pattern.find(text)?.value
     }
 }

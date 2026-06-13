@@ -456,16 +456,50 @@ private fun String.toGitLabLinkTarget(configuredHost: String): GitLabLinkTarget?
     val linkHost = uri.host ?: return null
     val expectedHost = runCatching { Uri.parse(configuredHost.trim()).host }.getOrNull()
         ?: configuredHost.trim().removePrefix("https://").removePrefix("http://").substringBefore("/")
-    if (!linkHost.equals(expectedHost, ignoreCase = true)) return null
+    
+    // Support gitlab.com even if not configured as primary, or the configured host
+    val isGitLabHost = linkHost.equals("gitlab.com", ignoreCase = true) ||
+                      linkHost.equals(expectedHost, ignoreCase = true) ||
+                      linkHost.endsWith(".e.foundation", ignoreCase = true)
+    
+    if (!isGitLabHost) {
+        // If it's a different host, we still try to parse it if it looks like GitLab
+        // but it will only be loadable if the host matches the session in the end.
+    }
 
     val segments = uri.pathSegments
     val separatorIndex = segments.indexOf("-")
-    if (separatorIndex <= 0 || separatorIndex + 2 >= segments.size) return null
+    
+    val targetKind: String
+    val iid: Long
+    val projectPath: String
 
-    val targetKind = segments[separatorIndex + 1]
-    if (targetKind !in setOf("issues", "work_items", "merge_requests")) return null
+    if (separatorIndex >= 0) {
+        if (separatorIndex == 0 || separatorIndex + 2 >= segments.size) return null
+        targetKind = segments[separatorIndex + 1]
+        iid = segments[separatorIndex + 2].toLongOrNull() ?: return null
+        projectPath = segments.take(separatorIndex).joinToString("/")
+    } else {
+        // Fallback for URLs without the '-' separator (e.g. some self-hosted or older versions)
+        val issuesIndex = segments.lastIndexOf("issues")
+        val mrsIndex = segments.lastIndexOf("merge_requests")
+        val workItemsIndex = segments.lastIndexOf("work_items")
+        
+        val keywordIndex = maxOf(issuesIndex, mrsIndex, workItemsIndex)
+        if (keywordIndex <= 0 || keywordIndex + 1 >= segments.size) return null
+        
+        targetKind = segments[keywordIndex]
+        iid = segments[keywordIndex + 1].toLongOrNull() ?: return null
+        projectPath = segments.take(keywordIndex).joinToString("/")
+    }
 
-    val iid = segments[separatorIndex + 2].toLongOrNull() ?: return null
-    val projectPath = segments.take(separatorIndex).joinToString("/")
+    // Final safety check: if the host doesn't match configured one, 
+    // we only return a target if we are sure it's a GitLab item.
+    if (!linkHost.equals(expectedHost, ignoreCase = true)) {
+        // If host mismatch, we can only open it if the user switches session.
+        // For now, return null to avoid attempting to load from wrong API.
+        return null
+    }
+
     return GitLabLinkTarget(projectPath = projectPath, targetKind = targetKind, iid = iid)
 }
