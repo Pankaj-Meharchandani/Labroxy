@@ -1,6 +1,7 @@
 package com.example.labroxy.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.labroxy.data.GitLabBoard
@@ -55,6 +56,12 @@ sealed interface DetailTarget {
     data class Issue(val projectId: Long, val issueIid: Long) : DetailTarget
     data class MergeRequest(val projectId: Long, val mergeRequestIid: Long) : DetailTarget
 }
+
+private data class GitLabLinkTarget(
+    val projectPath: String,
+    val targetKind: String,
+    val iid: Long
+)
 
 data class WorkDetailData(
     val target: DetailTarget,
@@ -292,6 +299,31 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun loadGitLabLink(url: String): Boolean {
+        val active = session.value
+        if (!active.isReady) return false
+        val linkTarget = url.toGitLabLinkTarget(active.host) ?: return false
+
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
+            _detail.value = LoadState.Loading
+            runCatching {
+                val repo = GitLabRepository(active)
+                val projectId = repo.project(linkTarget.projectPath).id
+                val target = when (linkTarget.targetKind) {
+                    "merge_requests" -> DetailTarget.MergeRequest(projectId, linkTarget.iid)
+                    "issues", "work_items" -> DetailTarget.Issue(projectId, linkTarget.iid)
+                    else -> throw IllegalArgumentException("Unsupported GitLab link")
+                }
+                detailDataForTarget(repo, target)
+            }.fold(
+                onSuccess = { _detail.value = LoadState.Success(it) },
+                onFailure = { _detail.value = LoadState.Error(it.toFriendlyMessage()) }
+            )
+        }
+        return true
+    }
+
     fun loadMergeRequest(projectId: Long, mergeRequestIid: Long) {
         loadDetail(DetailTarget.MergeRequest(projectId, mergeRequestIid))
     }
@@ -300,7 +332,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         val projectId = todo.project?.id ?: return
         val iid = todo.target?.iid ?: return
         when (todo.targetType) {
-            "Issue" -> loadIssue(projectId, iid)
+            "Issue", "WorkItem" -> loadIssue(projectId, iid)
             "MergeRequest" -> loadMergeRequest(projectId, iid)
         }
     }
@@ -309,7 +341,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         val projectId = event.projectId ?: return
         val iid = event.targetIid ?: return
         when (event.targetType) {
-            "Issue" -> loadIssue(projectId, iid)
+            "Issue", "WorkItem" -> loadIssue(projectId, iid)
             "MergeRequest" -> loadMergeRequest(projectId, iid)
         }
     }
@@ -417,4 +449,23 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             todos = cache.todos,
             events = cache.events
         )
+}
+
+private fun String.toGitLabLinkTarget(configuredHost: String): GitLabLinkTarget? {
+    val uri = runCatching { Uri.parse(this) }.getOrNull() ?: return null
+    val linkHost = uri.host ?: return null
+    val expectedHost = runCatching { Uri.parse(configuredHost.trim()).host }.getOrNull()
+        ?: configuredHost.trim().removePrefix("https://").removePrefix("http://").substringBefore("/")
+    if (!linkHost.equals(expectedHost, ignoreCase = true)) return null
+
+    val segments = uri.pathSegments
+    val separatorIndex = segments.indexOf("-")
+    if (separatorIndex <= 0 || separatorIndex + 2 >= segments.size) return null
+
+    val targetKind = segments[separatorIndex + 1]
+    if (targetKind !in setOf("issues", "work_items", "merge_requests")) return null
+
+    val iid = segments[separatorIndex + 2].toLongOrNull() ?: return null
+    val projectPath = segments.take(separatorIndex).joinToString("/")
+    return GitLabLinkTarget(projectPath = projectPath, targetKind = targetKind, iid = iid)
 }

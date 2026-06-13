@@ -167,7 +167,10 @@ private enum class WorkSection(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
+fun LabroxyApp(
+    deepLinkUrl: String? = null,
+    viewModel: LabroxyViewModel = viewModel()
+) {
     val session by viewModel.session.collectAsState()
     val dashboard by viewModel.dashboard.collectAsState()
     val project by viewModel.project.collectAsState()
@@ -178,6 +181,7 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
     val settings by viewModel.settings.collectAsState()
     var screen by remember { mutableStateOf(Screen.Loading) }
     var section by remember { mutableStateOf(WorkSection.Home) }
+    var handledDeepLinkUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(session.isLoaded, session.isReady) {
         screen = when {
@@ -186,6 +190,14 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
             else -> Screen.SignIn
         }
         if (session.isLoaded && !session.isReady) section = WorkSection.Home
+    }
+
+    LaunchedEffect(deepLinkUrl, session.isReady) {
+        val url = deepLinkUrl ?: return@LaunchedEffect
+        if (session.isReady && handledDeepLinkUrl != url && viewModel.loadGitLabLink(url)) {
+            handledDeepLinkUrl = url
+            screen = Screen.Detail
+        }
     }
 
     BackHandler(enabled = screen in listOf(Screen.Project, Screen.Group, Screen.Detail, Screen.User) || section != WorkSection.Home) {
@@ -286,6 +298,11 @@ fun LabroxyApp(viewModel: LabroxyViewModel = viewModel()) {
                     session = session,
                     onBack = { screen = Screen.Dashboard },
                     onIssueReferenceClick = viewModel::loadIssueReference,
+                    onGitLabLinkClick = { url ->
+                        viewModel.loadGitLabLink(url).also { handled ->
+                            if (handled) screen = Screen.Detail
+                        }
+                    },
                     onComment = viewModel::addComment,
                     onUpdateIssue = viewModel::updateIssueStatusAndLabels,
                     onUserClick = { username ->
@@ -1412,8 +1429,10 @@ private fun NoteBody(
     session: GitLabSession,
     detail: WorkDetailData,
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onGitLabLinkClick: (String) -> Boolean,
     onUserClick: (String) -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
     val attachments = remember(body, session.host, detail.webUrl, detail.target) {
         extractCommentAttachments(body, session.host, detail.webUrl, detail.target.projectId())
     }
@@ -1426,6 +1445,11 @@ private fun NoteBody(
         if (displayBody.isNotBlank()) {
             ClickableCommentText(
                 text = displayBody,
+                onLinkClick = { url ->
+                    if (!onGitLabLinkClick(url)) {
+                        uriHandler.openUri(url)
+                    }
+                },
                 onUserClick = onUserClick
             )
         }
@@ -1888,6 +1912,7 @@ private fun WorkDetailScreen(
     session: GitLabSession,
     onBack: () -> Unit,
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onGitLabLinkClick: (String) -> Boolean,
     onComment: (String, String?) -> Unit,
     onUpdateIssue: (Boolean, String) -> Unit,
     onUserClick: (String) -> Unit
@@ -2001,6 +2026,7 @@ private fun WorkDetailScreen(
                                 session = session,
                                 detail = loaded,
                                 onIssueReferenceClick = onIssueReferenceClick,
+                                onGitLabLinkClick = onGitLabLinkClick,
                                 onUserClick = onUserClick,
                                 onReply = { note ->
                                     replyTarget = ReplyTarget(
@@ -2076,6 +2102,7 @@ private fun DiscussionCard(
     session: GitLabSession,
     detail: WorkDetailData,
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onGitLabLinkClick: (String) -> Boolean,
     onUserClick: (String) -> Unit,
     onReply: (GitLabNote) -> Unit
 ) {
@@ -2097,6 +2124,7 @@ private fun DiscussionCard(
             session = session,
             detail = detail,
             onIssueReferenceClick = onIssueReferenceClick,
+            onGitLabLinkClick = onGitLabLinkClick,
             onUserClick = onUserClick,
             onReply = { onReply(firstNote) }
         )
@@ -2115,6 +2143,7 @@ private fun DiscussionCard(
                         session = session,
                         detail = detail,
                         onIssueReferenceClick = onIssueReferenceClick,
+                        onGitLabLinkClick = onGitLabLinkClick,
                         onUserClick = onUserClick,
                         onReply = { onReply(reply) }
                     )
@@ -2130,6 +2159,7 @@ private fun DiscussionNoteBody(
     session: GitLabSession,
     detail: WorkDetailData,
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onGitLabLinkClick: (String) -> Boolean,
     onUserClick: (String) -> Unit,
     onReply: () -> Unit
 ) {
@@ -2139,6 +2169,7 @@ private fun DiscussionNoteBody(
             session = session,
             detail = detail,
             onIssueReferenceClick = onIssueReferenceClick,
+            onGitLabLinkClick = onGitLabLinkClick,
             onUserClick = onUserClick
         )
         if (!note.system) {
@@ -2155,6 +2186,7 @@ private fun DiscussionReply(
     session: GitLabSession,
     detail: WorkDetailData,
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onGitLabLinkClick: (String) -> Boolean,
     onUserClick: (String) -> Unit,
     onReply: () -> Unit
 ) {
@@ -2184,6 +2216,7 @@ private fun DiscussionReply(
                 session = session,
                 detail = detail,
                 onIssueReferenceClick = onIssueReferenceClick,
+                onGitLabLinkClick = onGitLabLinkClick,
                 onUserClick = onUserClick
             )
             if (!note.system) {
@@ -2413,24 +2446,46 @@ private fun EmptyBlock(message: String) {
 @Composable
 private fun ClickableCommentText(
     text: String,
+    onLinkClick: (String) -> Unit,
     onUserClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val pattern = Regex("@([A-Za-z0-9_.-]+)")
+    val pattern = Regex("""!?\[([^\]]+)]\((https?://[^)\s]+)(?:\s+"[^"]*")?\)|https?://[^\s)]+|@([A-Za-z0-9_.-]+)""")
     val annotatedString = buildAnnotatedString {
         var lastIndex = 0
         pattern.findAll(text).forEach { result ->
             val matchRange = result.range
-            val username = result.groups[1]!!.value
-            
             if (matchRange.first > lastIndex) {
                 append(text.substring(lastIndex, matchRange.first))
             }
-            
+
             val start = length
-            append("@$username")
+            val markdownLabel = result.groups[1]?.value
+            val markdownUrl = result.groups[2]?.value
+            val username = result.groups[3]?.value
+            val plainUrl = result.value.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+
+            val annotationTag: String
+            val annotationValue: String
+            val displayText: String
+            if (markdownUrl != null) {
+                annotationTag = "LINK"
+                annotationValue = markdownUrl
+                displayText = markdownLabel ?: markdownUrl
+            } else if (plainUrl != null) {
+                annotationTag = "LINK"
+                annotationValue = plainUrl.trimEnd('.', ',', ')')
+                displayText = annotationValue
+            } else {
+                val mention = username ?: return@forEach
+                annotationTag = "USER"
+                annotationValue = mention
+                displayText = "@$mention"
+            }
+
+            append(displayText)
             val end = length
-            
+
             addStyle(
                 style = SpanStyle(
                     color = MaterialTheme.colorScheme.primary,
@@ -2440,8 +2495,8 @@ private fun ClickableCommentText(
                 end = end
             )
             addStringAnnotation(
-                tag = "USER",
-                annotation = username,
+                tag = annotationTag,
+                annotation = annotationValue,
                 start = start,
                 end = end
             )
@@ -2457,6 +2512,11 @@ private fun ClickableCommentText(
         style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
         modifier = modifier,
         onClick = { offset ->
+            annotatedString.getStringAnnotations(tag = "LINK", start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    onLinkClick(annotation.item)
+                    return@ClickableText
+                }
             annotatedString.getStringAnnotations(tag = "USER", start = offset, end = offset)
                 .firstOrNull()?.let { annotation ->
                     onUserClick(annotation.item)
