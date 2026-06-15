@@ -115,6 +115,17 @@ data class GitLabEvent(
 }
 
 @Serializable
+data class GitLabAwardEmoji(
+    val id: Long,
+    val name: String,
+    val user: GitLabUser,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+    @SerialName("awardable_id") val awardableId: Long,
+    @SerialName("awardable_type") val awardableType: String
+)
+
+@Serializable
 data class GitLabNote(
     val id: Long,
     val body: String,
@@ -124,7 +135,8 @@ data class GitLabNote(
     val author: GitLabUser? = null,
     val system: Boolean = false,
     val resolvable: Boolean = false,
-    val resolved: Boolean? = null
+    val resolved: Boolean? = null,
+    @SerialName("award_emoji") val awardEmoji: List<GitLabAwardEmoji> = emptyList()
 )
 
 @Serializable
@@ -158,4 +170,12 @@ data class GitLabBranch(
     val merged: Boolean = false,
     @SerialName("protected") val isProtected: Boolean = false,
     @SerialName("default") val isDefault: Boolean = false
+)
+
+@Serializable
+data class GitLabUpload(
+    val alt: String,
+    val url: String,
+    val fullPath: String? = null,
+    val markdown: String
 )

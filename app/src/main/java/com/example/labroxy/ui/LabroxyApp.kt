@@ -4,6 +4,7 @@ package com.example.labroxy.ui
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -36,7 +37,10 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.MergeType
 import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.History
@@ -51,6 +55,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AssistChip
@@ -62,6 +67,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -97,9 +103,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Palette
@@ -179,6 +189,7 @@ fun LabroxyApp(
     val userState by viewModel.userState.collectAsState()
     val query by viewModel.searchQuery.collectAsState()
     val settings by viewModel.settings.collectAsState()
+    val uploadState by viewModel.uploadState.collectAsState()
     var screen by remember { mutableStateOf(Screen.Loading) }
     var section by remember { mutableStateOf(WorkSection.Home) }
     var handledDeepLinkUrl by remember { mutableStateOf<String?>(null) }
@@ -296,7 +307,7 @@ fun LabroxyApp(
                 Screen.Detail -> WorkDetailScreen(
                     state = detail,
                     session = session,
-                    onBack = { screen = Screen.Dashboard },
+                    onBack = { screen = screen.takeIf { it != Screen.Detail } ?: Screen.Dashboard },
                     onIssueReferenceClick = viewModel::loadIssueReference,
                     onGitLabLinkClick = { url ->
                         viewModel.loadGitLabLink(url).also { handled ->
@@ -308,7 +319,12 @@ fun LabroxyApp(
                     onUserClick = { username ->
                         viewModel.loadUser(username)
                         screen = Screen.User
-                    }
+                    },
+                    uploadMarkdown = uploadState,
+                    onUploadFile = { projectId, uri -> viewModel.uploadFile(projectId, uri) },
+                    onClearUpload = viewModel::clearUploadState,
+                    onToggleReaction = viewModel::toggleReaction,
+                    currentUserId = (dashboard as? LoadState.Success<DashboardData>)?.value?.user?.id ?: 0
                 )
                 Screen.User -> UserScreen(
                     state = userState,
@@ -1955,13 +1971,25 @@ private fun WorkDetailScreen(
     onGitLabLinkClick: (String) -> Boolean,
     onComment: (String, String?) -> Unit,
     onUpdateIssue: (Boolean, String) -> Unit,
-    onUserClick: (String) -> Unit
+    onUserClick: (String) -> Unit,
+    uploadMarkdown: String? = null,
+    onUploadFile: (Long, Uri) -> Unit = { _, _ -> },
+    onClearUpload: () -> Unit = {},
+    onToggleReaction: (GitLabNote, String) -> Unit = { _, _ -> },
+    currentUserId: Long = 0
 ) {
     var comment by remember { mutableStateOf("") }
     var labels by remember { mutableStateOf("") }
     var replyTarget by remember { mutableStateOf<ReplyTarget?>(null) }
     val listState = rememberLazyListState()
     val data = (state as? LoadState.Success)?.value
+
+    LaunchedEffect(uploadMarkdown) {
+        if (uploadMarkdown != null) {
+            comment = if (comment.isBlank()) uploadMarkdown else "$comment\n$uploadMarkdown"
+            onClearUpload()
+        }
+    }
 
     LaunchedEffect(data?.target, data?.discussions?.sumOf { it.notes.size }) {
         val targetData = data ?: return@LaunchedEffect
@@ -1986,6 +2014,7 @@ private fun WorkDetailScreen(
         bottomBar = {
             if (data != null) {
                 CommentComposerBar(
+                    projectId = data.target.projectId(),
                     comment = comment,
                     replyTarget = replyTarget,
                     onCommentChange = { comment = it },
@@ -1994,7 +2023,8 @@ private fun WorkDetailScreen(
                         onComment(comment, replyTarget?.discussionId)
                         comment = ""
                         replyTarget = null
-                    }
+                    },
+                    onUploadFile = onUploadFile
                 )
             }
         }
@@ -2073,7 +2103,9 @@ private fun WorkDetailScreen(
                                         discussionId = discussion.id,
                                         authorName = note.author?.name ?: note.author?.username ?: "comment"
                                     )
-                                }
+                                },
+                                onToggleReaction = onToggleReaction,
+                                currentUserId = currentUserId
                             )
                         }
                     }
@@ -2085,12 +2117,19 @@ private fun WorkDetailScreen(
 
 @Composable
 private fun CommentComposerBar(
+    projectId: Long,
     comment: String,
     replyTarget: ReplyTarget?,
     onCommentChange: (String) -> Unit,
     onCancelReply: () -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onUploadFile: (Long, Uri) -> Unit
 ) {
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { onUploadFile(projectId, it) }
+    }
+    val context = LocalContext.current
+
     Surface(
         tonalElevation = 3.dp,
         shadowElevation = 6.dp,
@@ -2125,12 +2164,35 @@ private fun CommentComposerBar(
                 maxLines = 4,
                 modifier = Modifier.fillMaxWidth()
             )
-            Button(
-                onClick = onSubmit,
-                enabled = comment.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(if (replyTarget == null) "Comment" else "Reply")
+                IconButton(onClick = { filePicker.launch("*/*") }) {
+                    Icon(Icons.Outlined.AttachFile, "Attach file")
+                }
+                IconButton(onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = clipboard.primaryClip
+                    if (clip != null && clip.itemCount > 0) {
+                        val uri = clip.getItemAt(0).uri
+                        if (uri != null) {
+                            onUploadFile(projectId, uri)
+                        } else {
+                            Toast.makeText(context, "No image in clipboard", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }) {
+                    Icon(Icons.Outlined.ContentPaste, "Paste image")
+                }
+                Button(
+                    onClick = onSubmit,
+                    enabled = comment.isNotBlank(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (replyTarget == null) "Comment" else "Reply")
+                }
             }
         }
     }
@@ -2144,7 +2206,9 @@ private fun DiscussionCard(
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
     onGitLabLinkClick: (String) -> Boolean,
     onUserClick: (String) -> Unit,
-    onReply: (GitLabNote) -> Unit
+    onReply: (GitLabNote) -> Unit,
+    onToggleReaction: (GitLabNote, String) -> Unit,
+    currentUserId: Long
 ) {
     val firstNote = discussion.notes.firstOrNull()
     if (firstNote == null) {
@@ -2166,7 +2230,9 @@ private fun DiscussionCard(
             onIssueReferenceClick = onIssueReferenceClick,
             onGitLabLinkClick = onGitLabLinkClick,
             onUserClick = onUserClick,
-            onReply = { onReply(firstNote) }
+            onReply = { onReply(firstNote) },
+            onToggleReaction = onToggleReaction,
+            currentUserId = currentUserId
         )
         if (replies.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
@@ -2185,7 +2251,9 @@ private fun DiscussionCard(
                         onIssueReferenceClick = onIssueReferenceClick,
                         onGitLabLinkClick = onGitLabLinkClick,
                         onUserClick = onUserClick,
-                        onReply = { onReply(reply) }
+                        onReply = { onReply(reply) },
+                        onToggleReaction = onToggleReaction,
+                        currentUserId = currentUserId
                     )
                 }
             }
@@ -2201,7 +2269,9 @@ private fun DiscussionNoteBody(
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
     onGitLabLinkClick: (String) -> Boolean,
     onUserClick: (String) -> Unit,
-    onReply: () -> Unit
+    onReply: () -> Unit,
+    onToggleReaction: (GitLabNote, String) -> Unit,
+    currentUserId: Long
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         NoteBody(
@@ -2212,13 +2282,70 @@ private fun DiscussionNoteBody(
             onGitLabLinkClick = onGitLabLinkClick,
             onUserClick = onUserClick
         )
+        EmojiRow(
+            note = note,
+            onToggleReaction = onToggleReaction,
+            currentUserId = currentUserId
+        )
         if (!note.system) {
-            TextButton(onClick = onReply) {
-                Text("Reply")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onReply) {
+                    Text("Reply")
+                }
+                IconButton(onClick = { onToggleReaction(note, "thumbsup") }) {
+                    val hasMyLike = note.awardEmoji.any { it.name == "thumbsup" && it.user.id == currentUserId }
+                    Icon(
+                        imageVector = Icons.Outlined.ThumbUp,
+                        contentDescription = "Like",
+                        tint = if (hasMyLike) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
 }
+
+@Composable
+private fun EmojiRow(
+    note: GitLabNote,
+    onToggleReaction: (GitLabNote, String) -> Unit,
+    currentUserId: Long
+) {
+    if (note.awardEmoji.isEmpty()) return
+
+    val grouped = note.awardEmoji.groupBy { it.name }
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        grouped.forEach { (name, awards) ->
+            val hasMyAward = awards.any { it.user.id == currentUserId }
+            AssistChip(
+                onClick = { onToggleReaction(note, name) },
+                label = { Text("${emojiMap[name] ?: name} ${awards.size}") },
+                colors = if (hasMyAward) {
+                    androidx.compose.material3.AssistChipDefaults.assistChipColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                } else {
+                    androidx.compose.material3.AssistChipDefaults.assistChipColors()
+                }
+            )
+        }
+    }
+}
+
+private val emojiMap = mapOf(
+    "thumbsup" to "👍",
+    "thumbsdown" to "👎",
+    "smile" to "😄",
+    "tada" to "🎉",
+    "confused" to "😕",
+    "heart" to "❤️",
+    "rocket" to "🚀",
+    "eyes" to "👀"
+)
 
 @Composable
 private fun DiscussionReply(
@@ -2228,7 +2355,9 @@ private fun DiscussionReply(
     onIssueReferenceClick: (String?, Long, Long) -> Unit,
     onGitLabLinkClick: (String) -> Boolean,
     onUserClick: (String) -> Unit,
-    onReply: () -> Unit
+    onReply: () -> Unit,
+    onToggleReaction: (GitLabNote, String) -> Unit,
+    currentUserId: Long
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         UserAvatar(
@@ -2259,9 +2388,24 @@ private fun DiscussionReply(
                 onGitLabLinkClick = onGitLabLinkClick,
                 onUserClick = onUserClick
             )
+            EmojiRow(
+                note = note,
+                onToggleReaction = onToggleReaction,
+                currentUserId = currentUserId
+            )
             if (!note.system) {
-                TextButton(onClick = onReply) {
-                    Text("Reply")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onReply) {
+                        Text("Reply")
+                    }
+                    IconButton(onClick = { onToggleReaction(note, "thumbsup") }) {
+                        val hasMyLike = note.awardEmoji.any { it.name == "thumbsup" && it.user.id == currentUserId }
+                        Icon(
+                            imageVector = Icons.Outlined.ThumbUp,
+                            contentDescription = "Like",
+                            tint = if (hasMyLike) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

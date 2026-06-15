@@ -12,6 +12,7 @@ import com.example.labroxy.data.GitLabEvent
 import com.example.labroxy.data.GitLabGroup
 import com.example.labroxy.data.GitLabIssue
 import com.example.labroxy.data.GitLabMergeRequest
+import com.example.labroxy.data.GitLabNote
 import com.example.labroxy.data.GitLabProject
 import com.example.labroxy.data.GitLabRepository
 import com.example.labroxy.data.GitLabSession
@@ -422,6 +423,64 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                 loadDetail(target)
             }.onFailure {
                 _detail.value = LoadState.Error(it.toFriendlyMessage())
+            }
+        }
+    }
+
+    fun uploadFile(projectId: Long, uri: Uri) {
+        viewModelScope.launch {
+            val active = session.value
+            runCatching {
+                val context = getApplication<Application>()
+                val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    cursor.moveToFirst()
+                    cursor.getString(nameIndex)
+                } ?: "upload.bin"
+                val bytes = context.contentResolver.openInputStream(uri)?.readBytes() ?: throw Exception("Could not read file")
+                
+                GitLabRepository(active).uploadFile(projectId, bytes, fileName)
+            }.onSuccess { upload ->
+                // We'll update a state to indicate upload success and the markdown to insert
+                _uploadState.value = upload.markdown
+            }.onFailure {
+                // handle failure
+            }
+        }
+    }
+
+    private val _uploadState = MutableStateFlow<String?>(null)
+    val uploadState = _uploadState.asStateFlow()
+
+    fun clearUploadState() {
+        _uploadState.value = null
+    }
+
+    fun toggleReaction(note: GitLabNote, emojiName: String) {
+        val current = (_detail.value as? LoadState.Success)?.value ?: return
+        val target = current.target
+        val path = when (target) {
+            is DetailTarget.Issue -> "projects/${target.projectId}/issues/${target.issueIid}/notes/${note.id}"
+            is DetailTarget.MergeRequest -> "projects/${target.projectId}/merge_requests/${target.mergeRequestIid}/notes/${note.id}"
+        }
+        val currentUser = current.discussions.firstNotNullOfOrNull { it.notes.firstOrNull { it.author != null }?.author } 
+            // This is a hack, we should get the current user from dashboard or session.
+            // Actually, we have dashboard data which has the user.
+        
+        val dashboardData = (dashboard.value as? LoadState.Success)?.value
+        val myReaction = note.awardEmoji.find { it.name == emojiName && it.user.username == dashboardData?.user?.username }
+
+        viewModelScope.launch {
+            val active = session.value
+            runCatching {
+                val repo = GitLabRepository(active)
+                if (myReaction != null) {
+                    repo.deleteAwardEmoji(path, myReaction.id)
+                } else {
+                    repo.addAwardEmoji(path, emojiName)
+                }
+            }.onSuccess {
+                loadDetail(target)
             }
         }
     }

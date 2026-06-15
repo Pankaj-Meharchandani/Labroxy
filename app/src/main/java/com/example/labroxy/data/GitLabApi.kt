@@ -6,6 +6,9 @@ import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.delete
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -14,6 +17,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
@@ -207,6 +211,32 @@ class GitLabApi(
         getList("projects/$projectId/boards") {
             parameter("per_page", 50)
         }
+
+    suspend fun uploadFile(projectId: Long, file: ByteArray, fileName: String): GitLabUpload {
+        val normalizedHost = host.trim().removeSuffix("/")
+        val url = "$normalizedHost/api/v4/projects/$projectId/uploads"
+        return client.post(url) {
+            header("PRIVATE-TOKEN", tokenProvider())
+            setBody(MultiPartFormDataContent(
+                formData {
+                    append("file", file, Headers.build {
+                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                    })
+                }
+            ))
+        }.body()
+    }
+
+    suspend fun addAwardEmoji(path: String, emojiName: String): GitLabAwardEmoji =
+        post("$path/award_emoji", mapOf("name" to emojiName))
+
+    suspend fun deleteAwardEmoji(path: String, emojiId: Long) {
+        val normalizedHost = host.trim().removeSuffix("/")
+        val url = "$normalizedHost/api/v4/$path/award_emoji/$emojiId"
+        client.delete(url) {
+            header("PRIVATE-TOKEN", tokenProvider())
+        }
+    }
 
     private suspend inline fun <reified T> get(
         path: String,

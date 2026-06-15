@@ -44,4 +44,13 @@ class GitLabRepository(
     suspend fun commits(projectId: Long): List<GitLabCommit> = api.commits(projectId)
     suspend fun branches(projectId: Long): List<GitLabBranch> = api.branches(projectId)
     suspend fun boards(projectId: Long): List<GitLabBoard> = api.boards(projectId)
+
+    suspend fun uploadFile(projectId: Long, file: ByteArray, fileName: String): GitLabUpload =
+        api.uploadFile(projectId, file, fileName)
+
+    suspend fun addAwardEmoji(path: String, emojiName: String): GitLabAwardEmoji =
+        api.addAwardEmoji(path, emojiName)
+
+    suspend fun deleteAwardEmoji(path: String, emojiId: Long) =
+        api.deleteAwardEmoji(path, emojiId)
 }
