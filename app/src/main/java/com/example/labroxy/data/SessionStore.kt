@@ -33,7 +33,9 @@ data class CachedDashboard(
     val assignedCompletedWorkItems: List<GitLabIssue> = emptyList(),
     val assignedMergeRequests: List<GitLabMergeRequest> = emptyList(),
     val todos: List<GitLabTodo> = emptyList(),
-    val events: List<GitLabEvent> = emptyList()
+    val doneTodos: List<GitLabTodo> = emptyList(),
+    val events: List<GitLabEvent> = emptyList(),
+    val projectEvents: List<GitLabEvent> = emptyList()
 )
 
 class SessionStore(private val context: Context) {
@@ -47,7 +49,9 @@ class SessionStore(private val context: Context) {
     private val assignedCompletedWorkItemsCacheKey = stringPreferencesKey("cache_assigned_completed_work_items")
     private val assignedMergeRequestsCacheKey = stringPreferencesKey("cache_assigned_merge_requests")
     private val todosCacheKey = stringPreferencesKey("cache_todos")
+    private val doneTodosCacheKey = stringPreferencesKey("cache_done_todos")
     private val eventsCacheKey = stringPreferencesKey("cache_events")
+    private val projectEventsCacheKey = stringPreferencesKey("cache_project_events")
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -76,7 +80,9 @@ class SessionStore(private val context: Context) {
             assignedCompletedWorkItems = decodeList(prefs[assignedCompletedWorkItemsCacheKey], GitLabIssue.serializer()),
             assignedMergeRequests = decodeList(prefs[assignedMergeRequestsCacheKey], GitLabMergeRequest.serializer()),
             todos = decodeList(prefs[todosCacheKey], GitLabTodo.serializer()),
-            events = decodeList(prefs[eventsCacheKey], GitLabEvent.serializer())
+            doneTodos = decodeList(prefs[doneTodosCacheKey], GitLabTodo.serializer()),
+            events = decodeList(prefs[eventsCacheKey], GitLabEvent.serializer()),
+            projectEvents = decodeList(prefs[projectEventsCacheKey], GitLabEvent.serializer())
         )
     }
 
@@ -129,8 +135,16 @@ class SessionStore(private val context: Context) {
         context.dataStore.edit { it[todosCacheKey] = json.encodeToString(todos) }
     }
 
+    suspend fun saveDoneTodos(todos: List<GitLabTodo>) {
+        context.dataStore.edit { it[doneTodosCacheKey] = json.encodeToString(todos) }
+    }
+
     suspend fun saveEvents(events: List<GitLabEvent>) {
         context.dataStore.edit { it[eventsCacheKey] = json.encodeToString(events) }
+    }
+
+    suspend fun saveProjectEvents(events: List<GitLabEvent>) {
+        context.dataStore.edit { it[projectEventsCacheKey] = json.encodeToString(events) }
     }
 
     private fun <T> decodeList(value: String?, serializer: kotlinx.serialization.KSerializer<T>): List<T> =

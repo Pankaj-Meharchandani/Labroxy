@@ -65,14 +65,14 @@ class GitLabApi(
             if (query.isNotBlank()) parameter("search", query)
         }
 
-    suspend fun todos(): List<GitLabTodo> =
-        getList("todos") {
-            parameter("state", "pending")
+    suspend fun todos(state: String? = "pending", maxPages: Int = 1): List<GitLabTodo> =
+        getList("todos", maxPages = maxPages) {
+            state?.let { parameter("state", it) }
             parameter("per_page", 100)
         }
 
     suspend fun assignedIssues(userId: Long, state: String = "opened"): List<GitLabIssue> =
-        getList("issues") {
+        getList("issues", maxPages = 1) {
             parameter("scope", "all")
             parameter("state", state)
             parameter("assignee_id", userId)
@@ -82,7 +82,7 @@ class GitLabApi(
         }
 
     suspend fun assignedMergeRequests(userId: Long): List<GitLabMergeRequest> =
-        getList("merge_requests") {
+        getList("merge_requests", maxPages = 1) {
             parameter("scope", "all")
             parameter("state", "opened")
             parameter("assignee_id", userId)
@@ -92,8 +92,13 @@ class GitLabApi(
         }
 
     suspend fun events(): List<GitLabEvent> =
-        getList("events") {
+        getList("events", maxPages = 1) {
             parameter("per_page", 50)
+        }
+
+    suspend fun projectEvents(projectId: Long): List<GitLabEvent> =
+        getList("projects/$projectId/events", maxPages = 1) {
+            parameter("per_page", 30)
         }
 
     suspend fun project(projectId: Long): GitLabProject = get("projects/$projectId")
@@ -239,6 +244,7 @@ class GitLabApi(
 
     private suspend inline fun <reified T> getList(
         path: String,
+        maxPages: Int = Int.MAX_VALUE,
         crossinline block: HttpRequestBuilder.() -> Unit = {}
     ): List<T> {
         val normalizedHost = host.trim().removeSuffix("/")
@@ -255,6 +261,7 @@ class GitLabApi(
                 }
                 items += response.body<List<T>>()
                 page = response.headers["X-Next-Page"]?.toIntOrNull() ?: 0
+                if (page > maxPages) page = 0
             } catch (error: Throwable) {
                 if (items.isEmpty()) throw error
                 page = 0

@@ -578,7 +578,14 @@ private fun DashboardScreen(
                             )
                             WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests.filteredMergeRequests(query), onMergeRequestClick)
                             WorkSection.Todos -> todoItems(data.todos.filteredTodos(query), onTodoClick)
-                            WorkSection.Notifications -> eventItems(data.events.filteredEvents(query), onEventClick)
+                            WorkSection.Notifications -> notificationItems(
+                                todos = (data.todos + data.doneTodos).filteredTodos(query),
+                                events = data.events.filteredEvents(query),
+                                projectEvents = data.projectEvents.filteredEvents(query),
+                                currentUserId = data.user.id,
+                                onTodoClick = onTodoClick,
+                                onEventClick = onEventClick
+                            )
                             WorkSection.Settings -> item {
                                 SettingsScreen(
                                     settings = settings,
@@ -1377,18 +1384,51 @@ private fun androidx.compose.foundation.lazy.LazyListScope.todoItems(todos: List
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.eventItems(events: List<GitLabEvent>, onClick: (GitLabEvent) -> Unit) {
-    if (events.isEmpty()) {
-        item { EmptyBlock("No recent notifications yet.") }
+private fun androidx.compose.foundation.lazy.LazyListScope.notificationItems(
+    todos: List<GitLabTodo>,
+    events: List<GitLabEvent>,
+    projectEvents: List<GitLabEvent>,
+    currentUserId: Long,
+    onTodoClick: (GitLabTodo) -> Unit,
+    onEventClick: (GitLabEvent) -> Unit
+) {
+    val items = (todos.map { it to "todo" } + events.map { it to "event" } + projectEvents.map { it to "event" })
+        .filter { (item, type) ->
+            val authorId = if (type == "todo") (item as GitLabTodo).author?.id else (item as GitLabEvent).author?.id
+            // Only filter if we have a valid author and it matches current user.
+            // This ensures comments from unknown sources or if author parsing is missing still show up.
+            authorId == null || authorId != currentUserId
+        }
+        .distinctBy { (item, type) ->
+            if (type == "todo") "todo-${(item as GitLabTodo).id}" else "event-${(item as GitLabEvent).id}"
+        }
+        .sortedByDescending { (item, type) ->
+            if (type == "todo") (item as GitLabTodo).createdAt else (item as GitLabEvent).createdAt
+        }
+
+    if (items.isEmpty()) {
+        item { EmptyBlock("No notifications yet.") }
     } else {
-        items(events, key = { it.id }) { event ->
-            ListCard(
-                icon = Icons.Outlined.History,
-                user = event.author,
-                title = event.targetTitle ?: event.targetType ?: "GitLab activity",
-                meta = "${event.author?.username ?: "Someone"} ${event.displayAction}",
-                onClick = { onClick(event) }
-            )
+        items(items) { (item, type) ->
+            if (type == "todo") {
+                val todo = item as GitLabTodo
+                ListCard(
+                    icon = Icons.Outlined.NotificationsActive,
+                    user = todo.author,
+                    title = todo.target?.title ?: todo.body ?: todo.targetType,
+                    meta = "${todo.action} - ${todo.targetType}${todo.project?.name?.let { " in $it" } ?: ""} (${todo.state})",
+                    onClick = { onTodoClick(todo) }
+                )
+            } else {
+                val event = item as GitLabEvent
+                ListCard(
+                    icon = Icons.Outlined.History,
+                    user = event.author,
+                    title = event.targetTitle ?: event.targetType ?: "GitLab activity",
+                    meta = "${event.author?.username ?: "Someone"} ${event.displayAction}",
+                    onClick = { onEventClick(event) }
+                )
+            }
         }
     }
 }

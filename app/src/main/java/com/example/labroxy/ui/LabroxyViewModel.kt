@@ -22,6 +22,9 @@ import com.example.labroxy.data.CachedDashboard
 import com.example.labroxy.data.SessionStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -40,7 +43,9 @@ data class DashboardData(
     val assignedCompletedWorkItems: List<GitLabIssue> = emptyList(),
     val assignedMergeRequests: List<GitLabMergeRequest> = emptyList(),
     val todos: List<GitLabTodo> = emptyList(),
-    val events: List<GitLabEvent> = emptyList()
+    val doneTodos: List<GitLabTodo> = emptyList(),
+    val events: List<GitLabEvent> = emptyList(),
+    val projectEvents: List<GitLabEvent> = emptyList()
 )
 
 data class ProjectData(
@@ -130,32 +135,56 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                             data = data.withCache(cached)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(todos = runCatching { GitLabRepository(active).todos() }.getOrDefault(data.todos))
+                            val repo = GitLabRepository(active)
+
+                            // 1. Todos (quick)
+                            data = data.copy(todos = runCatching { repo.todos("pending") }.getOrDefault(data.todos))
                             sessionStore.saveTodos(data.todos)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(events = runCatching { GitLabRepository(active).events() }.getOrDefault(data.events))
+                            data = data.copy(doneTodos = runCatching { repo.todos("done") }.getOrDefault(data.doneTodos))
+                            sessionStore.saveDoneTodos(data.doneTodos)
+                            emit(LoadState.Success(data))
+
+                            // 2. Global Events
+                            data = data.copy(events = runCatching { repo.events() }.getOrDefault(data.events))
                             sessionStore.saveEvents(data.events)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(assignedWorkItems = runCatching { GitLabRepository(active).assignedIssues(data.user.id) }.getOrDefault(data.assignedWorkItems))
+                            // 3. Projects & Assigned (needed for project events)
+                            data = data.copy(assignedWorkItems = runCatching { repo.assignedIssues(data.user.id) }.getOrDefault(data.assignedWorkItems))
                             sessionStore.saveAssignedWorkItems(data.assignedWorkItems)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(assignedCompletedWorkItems = runCatching { GitLabRepository(active).assignedIssues(data.user.id, "closed") }.getOrDefault(data.assignedCompletedWorkItems))
+                            data = data.copy(projects = runCatching { repo.projects("") }.getOrDefault(data.projects))
+                            sessionStore.saveProjects(data.projects)
+                            emit(LoadState.Success(data))
+
+                            // 4. Project Events (intensive)
+                            val pids = (data.assignedWorkItems.mapNotNull { it.projectId } + data.projects.take(15).map { it.id }).distinct().take(25)
+                            val allProjectEvents = java.util.Collections.synchronizedList(mutableListOf<GitLabEvent>())
+                            coroutineScope {
+                                pids.forEach { pid ->
+                                    async {
+                                        runCatching { repo.projectEvents(pid) }.getOrNull()?.let { allProjectEvents.addAll(it) }
+                                    }
+                                }
+                            }
+                            data = data.copy(projectEvents = allProjectEvents.toList().distinctBy { it.id })
+                            sessionStore.saveProjectEvents(data.projectEvents)
+                            emit(LoadState.Success(data))
+
+                            // 5. Rest of the data
+                            data = data.copy(assignedCompletedWorkItems = runCatching { repo.assignedIssues(data.user.id, "closed") }.getOrDefault(data.assignedCompletedWorkItems))
                             sessionStore.saveAssignedCompletedWorkItems(data.assignedCompletedWorkItems)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(assignedMergeRequests = runCatching { GitLabRepository(active).assignedMergeRequests(data.user.id) }.getOrDefault(data.assignedMergeRequests))
+                            data = data.copy(assignedMergeRequests = runCatching { repo.assignedMergeRequests(data.user.id) }.getOrDefault(data.assignedMergeRequests))
                             sessionStore.saveAssignedMergeRequests(data.assignedMergeRequests)
                             emit(LoadState.Success(data))
 
-                            data = data.copy(groups = runCatching { GitLabRepository(active).groups("") }.getOrDefault(data.groups))
+                            data = data.copy(groups = runCatching { repo.groups("") }.getOrDefault(data.groups))
                             sessionStore.saveGroups(data.groups)
-                            emit(LoadState.Success(data))
-
-                            data = data.copy(projects = runCatching { GitLabRepository(active).projects("") }.getOrDefault(data.projects))
-                            sessionStore.saveProjects(data.projects)
                             emit(LoadState.Success(data))
                         },
                         onFailure = { emit(LoadState.Error(it.toFriendlyMessage())) }
@@ -447,7 +476,8 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             assignedCompletedWorkItems = cache.assignedCompletedWorkItems,
             assignedMergeRequests = cache.assignedMergeRequests,
             todos = cache.todos,
-            events = cache.events
+            events = cache.events,
+            projectEvents = cache.projectEvents
         )
 }
 
