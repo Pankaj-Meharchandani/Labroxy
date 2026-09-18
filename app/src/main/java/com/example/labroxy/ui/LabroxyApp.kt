@@ -138,6 +138,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.ClickableText
@@ -1500,33 +1501,66 @@ private fun NoteBody(
     val attachments = remember(body, session.host, detail.webUrl, detail.target) {
         extractCommentAttachments(body, session.host, detail.webUrl, detail.target.projectId())
     }
-    val displayBody = remember(body) { body.stripPreviewedMarkdownImages() }
     val issueReferences = remember(body, detail.target, detail.webUrl) {
         extractIssueReferences(body, detail)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (displayBody.isNotBlank()) {
-            ClickableCommentText(
-                text = displayBody,
-                onLinkClick = { url ->
-                    if (!onGitLabLinkClick(url)) {
-                        uriHandler.openUri(url)
-                    }
-                },
-                onUserClick = onUserClick
-            )
+        val segments = remember(body) {
+            val s = mutableListOf<NoteSegment>()
+            val pattern = Regex("""(!\[[^\]]*]\([^)\s]+(?:\s+"[^"]*")?\)(?:\{[^}]*\})?)|(<img\b[^>]*\bsrc=(["'])(.*?)\3[^>]*>)""", RegexOption.IGNORE_CASE)
+            var lastIndex = 0
+            pattern.findAll(body).forEach { result ->
+                if (result.range.first > lastIndex) {
+                    val text = body.substring(lastIndex, result.range.first).stripHtmlTags()
+                    if (text.isNotBlank()) s.add(NoteSegment.Text(text))
+                }
+                val rawUrl = result.groups[2]?.value ?: result.groups[4]?.value ?: result.value.substringAfter("(").substringBefore(")")
+                val resolved = resolveAttachmentUrl(rawUrl, session.host, detail.webUrl, detail.target.projectId())
+                if (resolved != null) {
+                    val normalizedUrl = resolved.loadUrl.normalizeHttpUrl()
+                    s.add(NoteSegment.Image(CommentAttachment(
+                        url = normalizedUrl,
+                        openUrl = resolved.openUrl.normalizeHttpUrl(),
+                        label = resolved.openUrl.substringBefore('?').substringBefore('#').substringAfterLast('/').ifBlank { "Image" },
+                        isImage = true
+                    )))
+                }
+                lastIndex = result.range.last + 1
+            }
+            if (lastIndex < body.length) {
+                val text = body.substring(lastIndex).stripHtmlTags()
+                if (text.isNotBlank()) s.add(NoteSegment.Text(text))
+            }
+            s
         }
-        attachments.filter { it.isImage }.forEach { attachment ->
-            CommentImagePreview(attachment, session.token)
+
+        segments.forEach { segment ->
+            when (segment) {
+                is NoteSegment.Text -> {
+                    ClickableCommentText(
+                        text = segment.text,
+                        onLinkClick = { url ->
+                            if (!onGitLabLinkClick(url)) {
+                                uriHandler.openUri(url)
+                            }
+                        },
+                        onUserClick = onUserClick
+                    )
+                }
+                is NoteSegment.Image -> {
+                    CommentImagePreview(segment.attachment, session.token)
+                }
+            }
         }
-        val files = attachments.filterNot { it.isImage }
-        if (files.isNotEmpty()) {
+
+        val nonImageAttachments = attachments.filterNot { it.isImage }
+        if (nonImageAttachments.isNotEmpty()) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                files.forEach { attachment ->
+                nonImageAttachments.forEach { attachment ->
                     CommentFileChip(attachment)
                 }
             }
@@ -1553,6 +1587,13 @@ private fun NoteBody(
         }
     }
 }
+
+private sealed class NoteSegment {
+    data class Text(val text: String) : NoteSegment()
+    data class Image(val attachment: CommentAttachment) : NoteSegment()
+}
+
+private fun String.stripHtmlTags(): String = replace(Regex("""<[^>]*>"""), "").trim()
 
 @Composable
 private fun CommentImagePreview(attachment: CommentAttachment, token: String) {
@@ -1679,14 +1720,6 @@ private val bareUrlPattern = Regex("""https?://[^\s)]+""")
 private val sameProjectIssuePattern = Regex("""(?<![\w/])#(\d+)""")
 private val crossProjectIssuePattern = Regex("""(?<![\w/.-])([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)#(\d+)""")
 private val issueUrlPattern = Regex("""(?:https?://[^/\s)]+/)?([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)/-/issues/(\d+)""")
-
-private fun String.stripPreviewedMarkdownImages(): String =
-    replace(markdownImagePattern, "")
-        .replace(htmlImagePattern, "")
-        .replace(htmlTagPattern, "")
-        .lines()
-        .joinToString("\n") { it.trimEnd() }
-        .trim()
 
 private fun resolveAttachmentUrl(
     rawUrl: String,
@@ -2420,7 +2453,8 @@ private fun DiscussionNoteBody(
             awardEmoji = note.awardEmoji,
             onToggleReaction = { onToggleReaction(note, it) },
             onShowReactionPicker = { onShowReactionPicker(note) },
-            currentUserId = currentUserId
+            currentUserId = currentUserId,
+            pinnedEmojis = listOf("thumbsup", "thumbsdown")
         )
         if (!note.system) {
             Row(
@@ -2692,7 +2726,8 @@ private fun DiscussionReply(
                 awardEmoji = note.awardEmoji,
                 onToggleReaction = { onToggleReaction(note, it) },
                 onShowReactionPicker = { onShowReactionPicker(note) },
-                currentUserId = currentUserId
+                currentUserId = currentUserId,
+                pinnedEmojis = listOf("thumbsup", "thumbsdown")
             )
             if (!note.system) {
                 Row(
@@ -2955,7 +2990,7 @@ private fun ClickableCommentText(
     onUserClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val pattern = Regex("""!?\[([^\]]+)]\((https?://[^)\s]+)(?:\s+"[^"]*")?\)|https?://[^\s)]+|@([A-Za-z0-9_.-]+)""")
+    val pattern = Regex("""!?\[([^\]]+)]\((https?://[^)\s]+)(?:\s+"[^"]*")?\)|https?://[^\s)]+|@([A-Za-z0-9_.-]+)|\*\*([^*]+)\*\*|\*([^*]+)\*|__([^_]+)__| _([^_]+)_""")
     val annotatedString = buildAnnotatedString {
         var lastIndex = 0
         pattern.findAll(text).forEach { result ->
@@ -2968,43 +3003,46 @@ private fun ClickableCommentText(
             val markdownLabel = result.groups[1]?.value
             val markdownUrl = result.groups[2]?.value
             val username = result.groups[3]?.value
+            val boldText = result.groups[4]?.value ?: result.groups[6]?.value
+            val italicText = result.groups[5]?.value ?: result.groups[7]?.value
             val plainUrl = result.value.takeIf { it.startsWith("http://") || it.startsWith("https://") }
 
-            val annotationTag: String
-            val annotationValue: String
-            val displayText: String
-            if (markdownUrl != null) {
-                annotationTag = "LINK"
-                annotationValue = markdownUrl
-                displayText = markdownLabel ?: markdownUrl
-            } else if (plainUrl != null) {
-                annotationTag = "LINK"
-                annotationValue = plainUrl.trimEnd('.', ',', ')')
-                displayText = annotationValue
-            } else {
-                val mention = username ?: return@forEach
-                annotationTag = "USER"
-                annotationValue = mention
-                displayText = "@$mention"
+            when {
+                markdownUrl != null -> {
+                    val label = markdownLabel ?: markdownUrl
+                    append(label)
+                    addStyle(
+                        SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
+                        start, length
+                    )
+                    addStringAnnotation("LINK", markdownUrl, start, length)
+                }
+                plainUrl != null -> {
+                    val url = plainUrl.trimEnd('.', ',', ')')
+                    append(url)
+                    addStyle(
+                        SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
+                        start, length
+                    )
+                    addStringAnnotation("LINK", url, start, length)
+                }
+                username != null -> {
+                    append("@$username")
+                    addStyle(
+                        SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
+                        start, length
+                    )
+                    addStringAnnotation("USER", username, start, length)
+                }
+                boldText != null -> {
+                    append(boldText)
+                    addStyle(SpanStyle(fontWeight = FontWeight.Bold), start, length)
+                }
+                italicText != null -> {
+                    append(italicText)
+                    addStyle(SpanStyle(fontStyle = FontStyle.Italic), start, length)
+                }
             }
-
-            append(displayText)
-            val end = length
-
-            addStyle(
-                style = SpanStyle(
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                ),
-                start = start,
-                end = end
-            )
-            addStringAnnotation(
-                tag = annotationTag,
-                annotation = annotationValue,
-                start = start,
-                end = end
-            )
             lastIndex = matchRange.last + 1
         }
         if (lastIndex < text.length) {
