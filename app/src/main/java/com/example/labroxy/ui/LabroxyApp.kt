@@ -56,7 +56,6 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.TaskAlt
-import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AssistChip
@@ -2128,8 +2127,7 @@ private fun WorkDetailScreen(
                                     awardEmoji = loaded.awardEmoji,
                                     onToggleReaction = { onToggleReaction(null, it) },
                                     onShowReactionPicker = { detailReactionPickerActive = true },
-                                    currentUserId = currentUserId,
-                                    pinnedEmojis = listOf("thumbsup", "thumbsdown")
+                                    currentUserId = currentUserId
                                 )
                             }
                         }
@@ -2453,8 +2451,7 @@ private fun DiscussionNoteBody(
             awardEmoji = note.awardEmoji,
             onToggleReaction = { onToggleReaction(note, it) },
             onShowReactionPicker = { onShowReactionPicker(note) },
-            currentUserId = currentUserId,
-            pinnedEmojis = listOf("thumbsup", "thumbsdown")
+            currentUserId = currentUserId
         )
         if (!note.system) {
             Row(
@@ -2469,16 +2466,6 @@ private fun DiscussionNoteBody(
                 ) {
                     Text("Reply", fontWeight = FontWeight.Bold)
                 }
-                Icon(
-                    imageVector = Icons.Outlined.ThumbUp,
-                    contentDescription = "Quick Like",
-                    tint = if (note.awardEmoji.any { it.name == "thumbsup" && it.user.id == currentUserId }) 
-                        MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable { onToggleReaction(note, "thumbsup") }
-                        .padding(2.dp)
-                )
             }
         }
     }
@@ -2494,7 +2481,6 @@ private fun EmojiRow(
 ) {
     val grouped = awardEmoji.groupBy { it.name }
     val allEmojiNames = (pinnedEmojis + grouped.keys).distinct()
-    val hasAnyOfMyAwards = awardEmoji.any { it.user.id == currentUserId }
     
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -2531,23 +2517,21 @@ private fun EmojiRow(
             }
         }
         
-        // Add reaction smiley button - hide if we already reacted
-        if (!hasAnyOfMyAwards) {
-            Surface(
-                onClick = onShowReactionPicker,
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.SentimentSatisfied,
-                    contentDescription = "Add reaction",
-                    modifier = Modifier
-                        .padding(6.dp)
-                        .size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        // Add reaction smiley button
+        Surface(
+            onClick = onShowReactionPicker,
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.SentimentSatisfied,
+                contentDescription = "Add reaction",
+                modifier = Modifier
+                    .padding(6.dp)
+                    .size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -2726,8 +2710,7 @@ private fun DiscussionReply(
                 awardEmoji = note.awardEmoji,
                 onToggleReaction = { onToggleReaction(note, it) },
                 onShowReactionPicker = { onShowReactionPicker(note) },
-                currentUserId = currentUserId,
-                pinnedEmojis = listOf("thumbsup", "thumbsdown")
+                currentUserId = currentUserId
             )
             if (!note.system) {
                 Row(
@@ -2742,16 +2725,6 @@ private fun DiscussionReply(
                     ) {
                         Text("Reply", fontWeight = FontWeight.Bold)
                     }
-                    Icon(
-                        imageVector = Icons.Outlined.ThumbUp,
-                        contentDescription = "Quick Like",
-                        tint = if (note.awardEmoji.any { it.user.id == currentUserId && it.name == "thumbsup" }) 
-                            MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable { onToggleReaction(note, "thumbsup") }
-                            .padding(2.dp)
-                    )
                 }
             }
         }
