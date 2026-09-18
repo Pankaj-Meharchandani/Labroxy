@@ -463,9 +463,6 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             is DetailTarget.Issue -> "projects/${target.projectId}/issues/${target.issueIid}/notes/${note.id}"
             is DetailTarget.MergeRequest -> "projects/${target.projectId}/merge_requests/${target.mergeRequestIid}/notes/${note.id}"
         }
-        val currentUser = current.discussions.firstNotNullOfOrNull { it.notes.firstOrNull { it.author != null }?.author } 
-            // This is a hack, we should get the current user from dashboard or session.
-            // Actually, we have dashboard data which has the user.
         
         val dashboardData = (dashboard.value as? LoadState.Success)?.value
         val myReaction = note.awardEmoji.find { it.name == emojiName && it.user.username == dashboardData?.user?.username }
@@ -480,22 +477,24 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     repo.addAwardEmoji(path, emojiName)
                 }
             }.onSuccess {
-                loadDetail(target)
+                loadDetail(target, silent = true)
             }
         }
     }
 
-    private fun loadDetail(target: DetailTarget) {
+    private fun loadDetail(target: DetailTarget, silent: Boolean = false) {
         detailJob?.cancel()
         detailJob = viewModelScope.launch {
             val active = session.value
-            _detail.value = LoadState.Loading
+            if (!silent) _detail.value = LoadState.Loading
             runCatching {
                 val repo = GitLabRepository(active)
                 detailDataForTarget(repo, target)
             }.fold(
                 onSuccess = { _detail.value = LoadState.Success(it) },
-                onFailure = { _detail.value = LoadState.Error(it.toFriendlyMessage()) }
+                onFailure = { 
+                    if (!silent) _detail.value = LoadState.Error(it.toFriendlyMessage()) 
+                }
             )
         }
     }

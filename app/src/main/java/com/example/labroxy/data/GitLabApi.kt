@@ -146,11 +146,13 @@ class GitLabApi(
     suspend fun issueDiscussions(projectId: Long, issueIid: Long): List<GitLabDiscussion> =
         getList("projects/$projectId/issues/$issueIid/discussions") {
             parameter("per_page", 100)
+            parameter("with_award_emoji", true)
         }
 
     suspend fun mergeRequestDiscussions(projectId: Long, mergeRequestIid: Long): List<GitLabDiscussion> =
         getList("projects/$projectId/merge_requests/$mergeRequestIid/discussions") {
             parameter("per_page", 100)
+            parameter("with_award_emoji", true)
         }
 
     suspend fun addIssueDiscussion(projectId: Long, issueIid: Long, body: String): GitLabDiscussion =

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.outlined.MergeType
 import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Cached
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -72,7 +73,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material.icons.outlined.SentimentSatisfied
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -1983,6 +1990,9 @@ private fun WorkDetailScreen(
     var replyTarget by remember { mutableStateOf<ReplyTarget?>(null) }
     val listState = rememberLazyListState()
     val data = (state as? LoadState.Success)?.value
+    var activeNoteForReaction by remember { mutableStateOf<GitLabNote?>(null) }
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(uploadMarkdown) {
         if (uploadMarkdown != null) {
@@ -2105,6 +2115,7 @@ private fun WorkDetailScreen(
                                     )
                                 },
                                 onToggleReaction = onToggleReaction,
+                                onShowReactionPicker = { activeNoteForReaction = it },
                                 currentUserId = currentUserId
                             )
                         }
@@ -2112,6 +2123,19 @@ private fun WorkDetailScreen(
                 }
             }
         }
+    }
+
+    if (activeNoteForReaction != null) {
+        EmojiPickerSheet(
+            sheetState = sheetState,
+            onDismiss = { activeNoteForReaction = null },
+            onEmojiSelected = { emojiName ->
+                activeNoteForReaction?.let { onToggleReaction(it, emojiName) }
+                scope.launch { sheetState.hide() }.invokeOnCompletion {
+                    if (!sheetState.isVisible) activeNoteForReaction = null
+                }
+            }
+        )
     }
 }
 
@@ -2208,6 +2232,7 @@ private fun DiscussionCard(
     onUserClick: (String) -> Unit,
     onReply: (GitLabNote) -> Unit,
     onToggleReaction: (GitLabNote, String) -> Unit,
+    onShowReactionPicker: (GitLabNote) -> Unit,
     currentUserId: Long
 ) {
     val firstNote = discussion.notes.firstOrNull()
@@ -2215,13 +2240,31 @@ private fun DiscussionCard(
         EmptyBlock("Empty discussion")
         return
     }
+
+    if (firstNote.system) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            discussion.notes.forEach { note ->
+                SystemNoteRow(
+                    note = note,
+                    session = session,
+                    detail = detail,
+                    onIssueReferenceClick = onIssueReferenceClick,
+                    onGitLabLinkClick = onGitLabLinkClick,
+                    onUserClick = onUserClick
+                )
+            }
+        }
+        return
+    }
+
     val replies = discussion.notes.drop(1)
 
     ListCard(
         icon = Icons.Outlined.History,
         user = firstNote.author,
         title = firstNote.author?.name ?: firstNote.author?.username ?: "GitLab",
-        meta = firstNote.createdAt ?: ""
+        meta = firstNote.createdAt ?: "",
+        onUserClick = onUserClick
     ) {
         DiscussionNoteBody(
             note = firstNote,
@@ -2232,6 +2275,7 @@ private fun DiscussionCard(
             onUserClick = onUserClick,
             onReply = { onReply(firstNote) },
             onToggleReaction = onToggleReaction,
+            onShowReactionPicker = onShowReactionPicker,
             currentUserId = currentUserId
         )
         if (replies.isNotEmpty()) {
@@ -2253,10 +2297,65 @@ private fun DiscussionCard(
                         onUserClick = onUserClick,
                         onReply = { onReply(reply) },
                         onToggleReaction = onToggleReaction,
+                        onShowReactionPicker = onShowReactionPicker,
                         currentUserId = currentUserId
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SystemNoteRow(
+    note: GitLabNote,
+    session: GitLabSession,
+    detail: WorkDetailData,
+    onIssueReferenceClick: (String?, Long, Long) -> Unit,
+    onGitLabLinkClick: (String) -> Boolean,
+    onUserClick: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(start = 14.dp)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                note.author?.name ?: note.author?.username ?: "GitLab",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.clickable { note.author?.username?.let { onUserClick(it) } }
+            )
+            Box(modifier = Modifier.weight(1f)) {
+                NoteBody(
+                    body = note.body,
+                    session = session,
+                    detail = detail,
+                    onIssueReferenceClick = onIssueReferenceClick,
+                    onGitLabLinkClick = onGitLabLinkClick,
+                    onUserClick = onUserClick
+                )
+            }
+            Text(
+                note.createdAt ?: "",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
         }
     }
 }
@@ -2271,6 +2370,7 @@ private fun DiscussionNoteBody(
     onUserClick: (String) -> Unit,
     onReply: () -> Unit,
     onToggleReaction: (GitLabNote, String) -> Unit,
+    onShowReactionPicker: (GitLabNote) -> Unit,
     currentUserId: Long
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2285,21 +2385,32 @@ private fun DiscussionNoteBody(
         EmojiRow(
             note = note,
             onToggleReaction = onToggleReaction,
+            onShowReactionPicker = { onShowReactionPicker(note) },
             currentUserId = currentUserId
         )
         if (!note.system) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onReply) {
-                    Text("Reply")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                TextButton(
+                    onClick = onReply,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFC6D26))
+                ) {
+                    Text("Reply", fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = { onToggleReaction(note, "thumbsup") }) {
-                    val hasMyLike = note.awardEmoji.any { it.name == "thumbsup" && it.user.id == currentUserId }
-                    Icon(
-                        imageVector = Icons.Outlined.ThumbUp,
-                        contentDescription = "Like",
-                        tint = if (hasMyLike) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Outlined.ThumbUp,
+                    contentDescription = "Quick Like",
+                    tint = if (note.awardEmoji.any { it.name == "thumbsup" && it.user.id == currentUserId }) 
+                        MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { onToggleReaction(note, "thumbsup") }
+                        .padding(2.dp)
+                )
             }
         }
     }
@@ -2309,29 +2420,136 @@ private fun DiscussionNoteBody(
 private fun EmojiRow(
     note: GitLabNote,
     onToggleReaction: (GitLabNote, String) -> Unit,
+    onShowReactionPicker: () -> Unit,
     currentUserId: Long
 ) {
-    if (note.awardEmoji.isEmpty()) return
-
     val grouped = note.awardEmoji.groupBy { it.name }
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
     ) {
         grouped.forEach { (name, awards) ->
             val hasMyAward = awards.any { it.user.id == currentUserId }
-            AssistChip(
+            Surface(
                 onClick = { onToggleReaction(note, name) },
-                label = { Text("${emojiMap[name] ?: name} ${awards.size}") },
-                colors = if (hasMyAward) {
-                    androidx.compose.material3.AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                shape = RoundedCornerShape(16.dp),
+                color = if (hasMyAward) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(
+                    1.dp,
+                    if (hasMyAward) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(text = "${emojiMap[name] ?: name}", fontSize = 14.sp)
+                    Text(
+                        text = "${awards.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (hasMyAward) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                     )
-                } else {
-                    androidx.compose.material3.AssistChipDefaults.assistChipColors()
                 }
+            }
+        }
+        
+        // Add reaction smiley button
+        Surface(
+            onClick = onShowReactionPicker,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.SentimentSatisfied,
+                contentDescription = "Add reaction",
+                modifier = Modifier
+                    .padding(6.dp)
+                    .size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EmojiPickerSheet(
+    sheetState: androidx.compose.material3.SheetState,
+    onDismiss: () -> Unit,
+    onEmojiSelected: (String) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredEmojis = remember(searchQuery) {
+        if (searchQuery.isBlank()) emojiMap.toList()
+        else emojiMap.filter { it.key.contains(searchQuery, ignoreCase = true) }.toList()
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Add reaction",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Close")
+                }
+            }
+
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search") },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                shape = RoundedCornerShape(24.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                )
+            )
+            
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 48.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
+            ) {
+                items(filteredEmojis) { (name, emoji) ->
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .clickable { onEmojiSelected(name) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = emoji, fontSize = 24.sp)
+                    }
+                }
+            }
         }
     }
 }
@@ -2344,7 +2562,45 @@ private val emojiMap = mapOf(
     "confused" to "😕",
     "heart" to "❤️",
     "rocket" to "🚀",
-    "eyes" to "👀"
+    "eyes" to "👀",
+    "laughing" to "😆",
+    "sweat_smile" to "😅",
+    "thinking" to "🤔",
+    "cry" to "😢",
+    "facepalm" to "🤦",
+    "ok_hand" to "👌",
+    "fire" to "🔥",
+    "clap" to "👏",
+    "joy" to "😂",
+    "heart_eyes" to "😍",
+    "pill" to "💊",
+    "hammer" to "🔨",
+    "white_check_mark" to "✅",
+    "x" to "❌",
+    "sunny" to "☀️",
+    "moon" to "🌙",
+    "star" to "⭐",
+    "party_popper" to "🎉",
+    "pray" to "🙏",
+    "grin" to "😁",
+    "rolling_on_the_floor_laughing" to "🤣",
+    "blush" to "😊",
+    "innocent" to "😇",
+    "star_struck" to "🤩",
+    "kissing_heart" to "😘",
+    "zany_face" to "🤪",
+    "shushing_face" to "🤫",
+    "money_mouth_face" to "🤑",
+    "hugging_face" to "🤗",
+    "sleeping" to "😴",
+    "sunglasses" to "😎",
+    "neutral_face" to "😐",
+    "expressionless" to "😑",
+    "grimacing" to "😬",
+    "pensive" to "😔",
+    "sob" to "😭",
+    "angry" to "😠",
+    "mask" to "😷"
 )
 
 @Composable
@@ -2357,18 +2613,20 @@ private fun DiscussionReply(
     onUserClick: (String) -> Unit,
     onReply: () -> Unit,
     onToggleReaction: (GitLabNote, String) -> Unit,
+    onShowReactionPicker: (GitLabNote) -> Unit,
     currentUserId: Long
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         UserAvatar(
             user = note.author ?: GitLabUser(id = 0, username = "gitlab", name = "GitLab"),
-            size = 32
+            size = 32,
+            onClick = { note.author?.username?.let { onUserClick(it) } }
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     note.author?.name ?: note.author?.username ?: "GitLab",
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).clickable { note.author?.username?.let { onUserClick(it) } },
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -2391,21 +2649,32 @@ private fun DiscussionReply(
             EmojiRow(
                 note = note,
                 onToggleReaction = onToggleReaction,
+                onShowReactionPicker = { onShowReactionPicker(note) },
                 currentUserId = currentUserId
             )
             if (!note.system) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onReply) {
-                        Text("Reply")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    TextButton(
+                        onClick = onReply,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFC6D26))
+                    ) {
+                        Text("Reply", fontWeight = FontWeight.Bold)
                     }
-                    IconButton(onClick = { onToggleReaction(note, "thumbsup") }) {
-                        val hasMyLike = note.awardEmoji.any { it.name == "thumbsup" && it.user.id == currentUserId }
-                        Icon(
-                            imageVector = Icons.Outlined.ThumbUp,
-                            contentDescription = "Like",
-                            tint = if (hasMyLike) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Outlined.ThumbUp,
+                        contentDescription = "Quick Like",
+                        tint = if (note.awardEmoji.any { it.name == "thumbsup" && it.user.id == currentUserId }) 
+                            MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable { onToggleReaction(note, "thumbsup") }
+                            .padding(2.dp)
+                    )
                 }
             }
         }
@@ -2492,12 +2761,13 @@ private fun ProjectHero(project: GitLabProject, branchCount: Int) {
 }
 
 @Composable
-private fun IssueRow(issue: GitLabIssue, onClick: () -> Unit = {}) {
+private fun IssueRow(issue: GitLabIssue, onUserClick: (String) -> Unit = {}, onClick: () -> Unit = {}) {
     ListCard(
         icon = Icons.Outlined.TaskAlt,
         user = issue.author,
         title = "#${issue.iid} ${issue.title}",
         meta = "${issue.state} by ${issue.author?.username ?: "unknown"}",
+        onUserClick = onUserClick,
         onClick = onClick
     ) {
         LabelRow(issue.labels)
@@ -2505,12 +2775,13 @@ private fun IssueRow(issue: GitLabIssue, onClick: () -> Unit = {}) {
 }
 
 @Composable
-private fun MergeRequestRow(mr: GitLabMergeRequest, onClick: () -> Unit = {}) {
+private fun MergeRequestRow(mr: GitLabMergeRequest, onUserClick: (String) -> Unit = {}, onClick: () -> Unit = {}) {
     ListCard(
         icon = Icons.AutoMirrored.Outlined.MergeType,
         user = mr.author,
         title = "!${mr.iid} ${mr.title}",
         meta = "${mr.sourceBranch} into ${mr.targetBranch}",
+        onUserClick = onUserClick,
         onClick = onClick
     ) {
         Text(mr.mergeStatus ?: mr.state, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2533,6 +2804,7 @@ private fun ListCard(
     meta: String,
     user: GitLabUser? = null,
     onClick: (() -> Unit)? = null,
+    onUserClick: ((String) -> Unit)? = null,
     content: @Composable () -> Unit = {}
 ) {
     val modifier = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)
@@ -2543,13 +2815,20 @@ private fun ListCard(
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
             if (user != null) {
-                UserAvatar(user = user, size = 36)
+                UserAvatar(user = user, size = 36, onClick = { onUserClick?.invoke(user.username) })
             } else {
                 Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(title, fontWeight = FontWeight.SemiBold, overflow = TextOverflow.Ellipsis)
+                Text(
+                    title,
+                    fontWeight = FontWeight.SemiBold,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable(enabled = onUserClick != null) {
+                        user?.username?.let { onUserClick?.invoke(it) }
+                    }
+                )
                 Text(meta, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 content()
             }
@@ -2782,7 +3061,7 @@ private fun UserScreen(
 }
 
 @Composable
-private fun UserAvatar(user: GitLabUser, size: Int = 80) {
+private fun UserAvatar(user: GitLabUser, size: Int = 80, onClick: (() -> Unit)? = null) {
     var hasError by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
@@ -2793,7 +3072,8 @@ private fun UserAvatar(user: GitLabUser, size: Int = 80) {
                 width = if (size > 50) 2.dp else 1.dp,
                 color = if (size > 50) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outlineVariant,
                 shape = CircleShape
-            ),
+            )
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         if (!user.avatarUrl.isNullOrBlank() && !hasError) {
