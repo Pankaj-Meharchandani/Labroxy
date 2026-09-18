@@ -229,6 +229,9 @@ class GitLabApi(
         }.body()
     }
 
+    suspend fun getAwardEmoji(path: String): List<GitLabAwardEmoji> =
+        getList("$path/award_emoji")
+
     suspend fun addAwardEmoji(path: String, emojiName: String): GitLabAwardEmoji =
         post("$path/award_emoji", mapOf("name" to emojiName))
 

@@ -514,6 +514,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         when (target) {
             is DetailTarget.Issue -> {
                 val issue = repo.issue(target.projectId, target.issueIid)
+                val emoji = runCatching { repo.getAwardEmoji("projects/${target.projectId}/issues/${target.issueIid}") }.getOrDefault(emptyList())
                 WorkDetailData(
                     target = target,
                     title = "#${issue.iid} ${issue.title}",
@@ -523,11 +524,12 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     webUrl = issue.webUrl,
                     labels = issue.labels,
                     discussions = repo.issueDiscussions(target.projectId, target.issueIid),
-                    awardEmoji = issue.awardEmoji
+                    awardEmoji = emoji
                 )
             }
             is DetailTarget.MergeRequest -> {
                 val mr = repo.mergeRequest(target.projectId, target.mergeRequestIid)
+                val emoji = runCatching { repo.getAwardEmoji("projects/${target.projectId}/merge_requests/${target.mergeRequestIid}") }.getOrDefault(emptyList())
                 WorkDetailData(
                     target = target,
                     title = "!${mr.iid} ${mr.title}",
@@ -536,7 +538,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     description = mr.description,
                     webUrl = mr.webUrl,
                     discussions = repo.mergeRequestDiscussions(target.projectId, target.mergeRequestIid),
-                    awardEmoji = mr.awardEmoji
+                    awardEmoji = emoji
                 )
             }
         }

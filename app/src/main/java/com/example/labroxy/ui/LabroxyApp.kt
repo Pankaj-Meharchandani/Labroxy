@@ -1674,6 +1674,7 @@ private fun extractCommentAttachments(
 private val markdownImagePattern = Regex("""!\[([^\]]*)]\(([^)\s]+)(?:\s+"[^"]*")?\)(?:\{[^}]*\})?""")
 private val markdownLinkPattern = Regex("""(?<!!)\[([^\]]*)]\(([^)\s]+)(?:\s+"[^"]*")?\)""")
 private val htmlImagePattern = Regex("""<img\b[^>]*\bsrc=(["'])(.*?)\1[^>]*>""", RegexOption.IGNORE_CASE)
+private val htmlTagPattern = Regex("""<[^>]*>""")
 private val bareUrlPattern = Regex("""https?://[^\s)]+""")
 private val sameProjectIssuePattern = Regex("""(?<![\w/])#(\d+)""")
 private val crossProjectIssuePattern = Regex("""(?<![\w/.-])([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)#(\d+)""")
@@ -1682,6 +1683,7 @@ private val issueUrlPattern = Regex("""(?:https?://[^/\s)]+/)?([A-Za-z0-9_.-]+(?
 private fun String.stripPreviewedMarkdownImages(): String =
     replace(markdownImagePattern, "")
         .replace(htmlImagePattern, "")
+        .replace(htmlTagPattern, "")
         .lines()
         .joinToString("\n") { it.trimEnd() }
         .trim()
@@ -2093,7 +2095,8 @@ private fun WorkDetailScreen(
                                     awardEmoji = loaded.awardEmoji,
                                     onToggleReaction = { onToggleReaction(null, it) },
                                     onShowReactionPicker = { detailReactionPickerActive = true },
-                                    currentUserId = currentUserId
+                                    currentUserId = currentUserId,
+                                    pinnedEmojis = listOf("thumbsup", "thumbsdown")
                                 )
                             }
                         }
@@ -2452,9 +2455,11 @@ private fun EmojiRow(
     awardEmoji: List<GitLabAwardEmoji>,
     onToggleReaction: (String) -> Unit,
     onShowReactionPicker: () -> Unit,
-    currentUserId: Long
+    currentUserId: Long,
+    pinnedEmojis: List<String> = emptyList()
 ) {
     val grouped = awardEmoji.groupBy { it.name }
+    val allEmojiNames = (pinnedEmojis + grouped.keys).distinct()
     val hasAnyOfMyAwards = awardEmoji.any { it.user.id == currentUserId }
     
     FlowRow(
@@ -2464,7 +2469,8 @@ private fun EmojiRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
     ) {
-        grouped.forEach { (name, awards) ->
+        allEmojiNames.forEach { name ->
+            val awards = grouped[name] ?: emptyList()
             val hasMyAward = awards.any { it.user.id == currentUserId }
             Surface(
                 onClick = { onToggleReaction(name) },
@@ -2480,15 +2486,13 @@ private fun EmojiRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(text = "${emojiMap[name] ?: name}", fontSize = 16.sp)
-                    if (awards.isNotEmpty()) {
-                        Text(
-                            text = "${awards.size}",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (hasMyAward) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    Text(text = emojiMap[name] ?: name, fontSize = 16.sp)
+                    Text(
+                        text = "${awards.size}",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (hasMyAward) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }

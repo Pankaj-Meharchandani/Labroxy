@@ -48,6 +48,9 @@ class GitLabRepository(
     suspend fun uploadFile(projectId: Long, file: ByteArray, fileName: String): GitLabUpload =
         api.uploadFile(projectId, file, fileName)
 
+    suspend fun getAwardEmoji(path: String): List<GitLabAwardEmoji> =
+        api.getAwardEmoji(path)
+
     suspend fun addAwardEmoji(path: String, emojiName: String): GitLabAwardEmoji =
         api.addAwardEmoji(path, emojiName)
 
