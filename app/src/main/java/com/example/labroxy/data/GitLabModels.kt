@@ -51,13 +51,15 @@ data class GitLabIssue(
     val id: Long = 0,
     val iid: Long = 0,
     val title: String = "",
+    val description: String? = null,
     val state: String = "",
     @SerialName("project_id") val projectId: Long? = null,
     val labels: List<String> = emptyList(),
     @SerialName("web_url") val webUrl: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
-    val author: GitLabUser? = null
+    val author: GitLabUser? = null,
+    @SerialName("award_emoji") val awardEmoji: List<GitLabAwardEmoji> = emptyList()
 )
 
 @Serializable
@@ -87,6 +89,7 @@ data class GitLabMergeRequest(
     val id: Long = 0,
     val iid: Long = 0,
     val title: String = "",
+    val description: String? = null,
     val state: String = "",
     @SerialName("project_id") val projectId: Long? = null,
     @SerialName("source_branch") val sourceBranch: String,
@@ -95,7 +98,8 @@ data class GitLabMergeRequest(
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     @SerialName("merge_status") val mergeStatus: String? = null,
-    val author: GitLabUser? = null
+    val author: GitLabUser? = null,
+    @SerialName("award_emoji") val awardEmoji: List<GitLabAwardEmoji> = emptyList()
 )
 
 @Serializable

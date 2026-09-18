@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.labroxy.data.GitLabAwardEmoji
 import com.example.labroxy.data.GitLabBoard
 import com.example.labroxy.data.GitLabBranch
 import com.example.labroxy.data.GitLabCommit
@@ -74,9 +75,11 @@ data class WorkDetailData(
     val title: String,
     val subtitle: String,
     val state: String,
+    val description: String? = null,
     val webUrl: String? = null,
     val labels: List<String> = emptyList(),
-    val discussions: List<GitLabDiscussion> = emptyList()
+    val discussions: List<GitLabDiscussion> = emptyList(),
+    val awardEmoji: List<GitLabAwardEmoji> = emptyList()
 )
 
 data class GroupData(
@@ -456,16 +459,24 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         _uploadState.value = null
     }
 
-    fun toggleReaction(note: GitLabNote, emojiName: String) {
+    fun toggleReaction(note: GitLabNote?, emojiName: String) {
         val current = (_detail.value as? LoadState.Success)?.value ?: return
         val target = current.target
-        val path = when (target) {
-            is DetailTarget.Issue -> "projects/${target.projectId}/issues/${target.issueIid}/notes/${note.id}"
-            is DetailTarget.MergeRequest -> "projects/${target.projectId}/merge_requests/${target.mergeRequestIid}/notes/${note.id}"
+        val path = if (note != null) {
+            when (target) {
+                is DetailTarget.Issue -> "projects/${target.projectId}/issues/${target.issueIid}/notes/${note.id}"
+                is DetailTarget.MergeRequest -> "projects/${target.projectId}/merge_requests/${target.mergeRequestIid}/notes/${note.id}"
+            }
+        } else {
+            when (target) {
+                is DetailTarget.Issue -> "projects/${target.projectId}/issues/${target.issueIid}"
+                is DetailTarget.MergeRequest -> "projects/${target.projectId}/merge_requests/${target.mergeRequestIid}"
+            }
         }
         
+        val awardEmoji = note?.awardEmoji ?: current.awardEmoji
         val dashboardData = (dashboard.value as? LoadState.Success)?.value
-        val myReaction = note.awardEmoji.find { it.name == emojiName && it.user.username == dashboardData?.user?.username }
+        val myReaction = awardEmoji.find { it.name == emojiName && it.user.username == dashboardData?.user?.username }
 
         viewModelScope.launch {
             val active = session.value
@@ -508,9 +519,11 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     title = "#${issue.iid} ${issue.title}",
                     subtitle = "Issue in project ${target.projectId}",
                     state = issue.state,
+                    description = issue.description,
                     webUrl = issue.webUrl,
                     labels = issue.labels,
-                    discussions = repo.issueDiscussions(target.projectId, target.issueIid)
+                    discussions = repo.issueDiscussions(target.projectId, target.issueIid),
+                    awardEmoji = issue.awardEmoji
                 )
             }
             is DetailTarget.MergeRequest -> {
@@ -520,8 +533,10 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     title = "!${mr.iid} ${mr.title}",
                     subtitle = "${mr.sourceBranch} into ${mr.targetBranch}",
                     state = mr.state,
+                    description = mr.description,
                     webUrl = mr.webUrl,
-                    discussions = repo.mergeRequestDiscussions(target.projectId, target.mergeRequestIid)
+                    discussions = repo.mergeRequestDiscussions(target.projectId, target.mergeRequestIid),
+                    awardEmoji = mr.awardEmoji
                 )
             }
         }
