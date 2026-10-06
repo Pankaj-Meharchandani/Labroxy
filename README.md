@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Labroxy Logo" width="180" height="170" />
+  <img src="https://raw.githubusercontent.com/Pankaj-Meharchandani/Labroxy/main/assets/logo.svg" alt="Labroxy Logo" width="180" height="170" />
 </p>
 
 <h1 align="center">Labroxy</h1>
@@ -13,6 +13,7 @@
   <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Compose-Material%203-4285F4.svg?logo=android&logoColor=white&style=for-the-badge" alt="Jetpack Compose" /></a>
   <a href="https://ktor.io"><img src="https://img.shields.io/badge/Ktor-3.0.3-F05138.svg?logo=ktor&logoColor=white&style=for-the-badge" alt="Ktor Client" /></a>
   <a href="https://developer.android.com/studio"><img src="https://img.shields.io/badge/Min%20SDK-26-3DDC84.svg?logo=android&logoColor=white&style=for-the-badge" alt="Min SDK" /></a>
+  <a href="https://apps.obtainium.im/add?r=obtainium://add/https://github.com/Pankaj-Meharchandani/Labroxy"><img src="https://img.shields.io/badge/Obtainium-Add%20App-24A1DE.svg?logo=android&logoColor=white&style=for-the-badge" alt="Add to Obtainium" /></a>
 </p>
 
 ---
@@ -70,16 +71,34 @@ Labroxy is built using modern Android architecture components and best-practice 
 
 ## 🏁 Getting Started
 
-### 📋 Prerequisites
+### 📥 Download & Install
 
-To run Labroxy, you need:
+#### 📱 Obtainium (Recommended)
+Easily install Labroxy and stay updated with the latest app releases using [Obtainium](https://github.com/ImranR62/Obtainium):
+
+<p align="left">
+  <a href="https://apps.obtainium.im/add?r=obtainium://add/https://github.com/Pankaj-Meharchandani/Labroxy">
+    <img src="https://github.com/ImranR62/Obtainium/raw/main/assets/badge.png" alt="Add to Obtainium" height="48" />
+  </a>
+</p>
+
+Or add the repository URL directly in Obtainium:
+`https://github.com/Pankaj-Meharchandani/Labroxy`
+
+---
+
+### 📋 Building from Source
+
+#### Prerequisites
+
+To run Labroxy from source, you need:
 - **Android Studio** (Koala or newer recommended)
 - **Android SDK** installed (Targeting API level 35)
 - A **GitLab Personal Access Token** (PAT) with:
   - `read_api` (required for pulling repository information, issues, and pipelines)
   - `read_repository` (recommended for full project metadata and committing references)
 
-### 📥 Installation & Running
+#### Installation & Running
 
 1. **Clone the repository:**
    ```bash
