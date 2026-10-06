@@ -59,7 +59,60 @@ data class GitLabIssue(
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     val author: GitLabUser? = null,
+    val assignee: GitLabUser? = null,
+    val assignees: List<GitLabUser> = emptyList(),
     @SerialName("award_emoji") val awardEmoji: List<GitLabAwardEmoji> = emptyList()
+)
+
+@Serializable
+data class GitLabLabel(
+    val id: Long = 0,
+    val name: String = "",
+    val color: String = "#6699cc",
+    @SerialName("text_color") val textColor: String? = null,
+    val description: String? = null
+)
+
+@Serializable
+data class GitLabRelatedItem(
+    val id: Long = 0,
+    val iid: Long = 0,
+    val title: String = "",
+    val state: String = "",
+    @SerialName("project_id") val projectId: Long? = null,
+    @SerialName("web_url") val webUrl: String? = null,
+    @SerialName("reference") val reference: String? = null
+)
+
+@Serializable
+data class GitLabIssueLink(
+    @SerialName("source_issue") val sourceIssue: GitLabIssue? = null,
+    @SerialName("target_issue") val targetIssue: GitLabIssue? = null,
+    @SerialName("link_type") val linkType: String? = null
+)
+
+@Serializable
+data class GitLabWorkItemDetail(
+    val id: Long = 0,
+    val iid: Long = 0,
+    val title: String = "",
+    val state: String = "",
+    @SerialName("project_id") val projectId: Long? = null,
+    @SerialName("web_url") val webUrl: String? = null,
+    val widgets: List<GitLabWorkItemWidget> = emptyList()
+)
+
+@Serializable
+data class GitLabWorkItemWidget(
+    val type: String = "",
+    val parent: GitLabRelatedItem? = null,
+    val children: GitLabRelatedItemNodes? = null,
+    @SerialName("linked_items") val linkedItems: GitLabRelatedItemNodes? = null
+)
+
+@Serializable
+data class GitLabRelatedItemNodes(
+    val nodes: List<GitLabRelatedItem> = emptyList()
 )
 
 @Serializable

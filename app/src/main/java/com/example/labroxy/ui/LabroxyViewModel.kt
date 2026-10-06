@@ -13,9 +13,11 @@ import com.example.labroxy.data.GitLabDiscussion
 import com.example.labroxy.data.GitLabEvent
 import com.example.labroxy.data.GitLabGroup
 import com.example.labroxy.data.GitLabIssue
+import com.example.labroxy.data.GitLabLabel
 import com.example.labroxy.data.GitLabMergeRequest
 import com.example.labroxy.data.GitLabNote
 import com.example.labroxy.data.GitLabProject
+import com.example.labroxy.data.GitLabRelatedItem
 import com.example.labroxy.data.GitLabRepository
 import com.example.labroxy.data.GitLabSession
 import com.example.labroxy.data.GitLabTodo
@@ -79,6 +81,11 @@ data class WorkDetailData(
     val description: String? = null,
     val webUrl: String? = null,
     val labels: List<String> = emptyList(),
+    val labelDetails: List<GitLabLabel> = emptyList(),
+    val assignees: List<GitLabUser> = emptyList(),
+    val parentItem: GitLabRelatedItem? = null,
+    val childItems: List<GitLabRelatedItem> = emptyList(),
+    val linkedItems: List<GitLabRelatedItem> = emptyList(),
     val discussions: List<GitLabDiscussion> = emptyList(),
     val awardEmoji: List<GitLabAwardEmoji> = emptyList()
 )
@@ -520,6 +527,25 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                 val issue = repo.issue(target.projectId, target.issueIid)
                 val path = "projects/${target.projectId}/issues/${target.issueIid}"
                 val emoji = runCatching { repo.getAwardEmoji(path) }.getOrDefault(emptyList())
+                val labelDetails = runCatching {
+                    repo.projectLabels(target.projectId).orderedFor(issue.labels)
+                }.getOrDefault(issue.labels.map { GitLabLabel(name = it) })
+                val workItem = runCatching { repo.workItem(target.projectId, target.issueIid) }.getOrNull()
+                val issueLinks = runCatching { repo.issueLinks(target.projectId, target.issueIid) }.getOrDefault(emptyList())
+                val parent = workItem?.widgets?.firstNotNullOfOrNull { it.parent?.takeIf { item -> item.title.isNotBlank() } }
+                val children = workItem?.widgets
+                    ?.flatMap { it.children?.nodes.orEmpty() }
+                    ?.filter { it.title.isNotBlank() }
+                    .orEmpty()
+                val linkedFromWorkItem = workItem?.widgets
+                    ?.flatMap { it.linkedItems?.nodes.orEmpty() }
+                    ?.filter { it.title.isNotBlank() }
+                    .orEmpty()
+                val linkedFromIssues = issueLinks.mapNotNull { link ->
+                    val linked = listOfNotNull(link.sourceIssue, link.targetIssue)
+                        .firstOrNull { it.id != issue.id }
+                    linked?.toRelatedItem(link.linkType)
+                }
                 val discussions = repo.issueDiscussions(target.projectId, target.issueIid)
                 WorkDetailData(
                     target = target,
@@ -529,6 +555,12 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     description = issue.description,
                     webUrl = issue.webUrl,
                     labels = issue.labels,
+                    labelDetails = labelDetails,
+                    assignees = issue.assignees.ifEmpty { listOfNotNull(issue.assignee) },
+                    parentItem = parent,
+                    childItems = children.distinctBy { it.id.takeIf { id -> id != 0L } ?: it.webUrl.hashCode().toLong() },
+                    linkedItems = (linkedFromWorkItem + linkedFromIssues)
+                        .distinctBy { it.id.takeIf { id -> id != 0L } ?: it.webUrl.hashCode().toLong() },
                     discussions = discussions.withNoteAwardEmoji(repo, path),
                     awardEmoji = emoji
                 )
@@ -550,6 +582,22 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
         }
+
+    private fun List<GitLabLabel>.orderedFor(names: List<String>): List<GitLabLabel> =
+        names.map { name ->
+            firstOrNull { it.name == name } ?: GitLabLabel(name = name)
+        }
+
+    private fun GitLabIssue.toRelatedItem(linkType: String?): GitLabRelatedItem =
+        GitLabRelatedItem(
+            id = id,
+            iid = iid,
+            title = title,
+            state = linkType?.takeIf { it.isNotBlank() } ?: state,
+            projectId = projectId,
+            webUrl = webUrl,
+            reference = "#$iid"
+        )
 
     private suspend fun List<GitLabDiscussion>.withNoteAwardEmoji(
         repo: GitLabRepository,

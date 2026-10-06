@@ -110,6 +110,11 @@ class GitLabApi(
     suspend fun project(projectPath: String): GitLabProject =
         get("projects/${projectPath.gitLabPathEncoded()}")
 
+    suspend fun projectLabels(projectId: Long): List<GitLabLabel> =
+        getList("projects/$projectId/labels") {
+            parameter("per_page", 100)
+        }
+
     suspend fun groupProjects(groupId: Long): List<GitLabProject> =
         getList("groups/$groupId/projects") {
             parameter("include_subgroups", true)
@@ -139,6 +144,14 @@ class GitLabApi(
 
     suspend fun issue(projectId: Long, issueIid: Long): GitLabIssue =
         get("projects/$projectId/issues/$issueIid")
+
+    suspend fun issueLinks(projectId: Long, issueIid: Long): List<GitLabIssueLink> =
+        getList("projects/$projectId/issues/$issueIid/links") {
+            parameter("per_page", 100)
+        }
+
+    suspend fun workItem(projectId: Long, issueIid: Long): GitLabWorkItemDetail =
+        get("projects/$projectId/work_items/$issueIid")
 
     suspend fun mergeRequest(projectId: Long, mergeRequestIid: Long): GitLabMergeRequest =
         get("projects/$projectId/merge_requests/$mergeRequestIid")

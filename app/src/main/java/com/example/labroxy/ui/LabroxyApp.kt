@@ -163,9 +163,11 @@ import com.example.labroxy.data.GitLabDiscussion
 import com.example.labroxy.data.GitLabEvent
 import com.example.labroxy.data.GitLabGroup
 import com.example.labroxy.data.GitLabIssue
+import com.example.labroxy.data.GitLabLabel
 import com.example.labroxy.data.GitLabMergeRequest
 import com.example.labroxy.data.GitLabNote
 import com.example.labroxy.data.GitLabProject
+import com.example.labroxy.data.GitLabRelatedItem
 import com.example.labroxy.data.GitLabSession
 import com.example.labroxy.data.GitLabTodo
 import com.example.labroxy.data.GitLabUser
@@ -2103,7 +2105,36 @@ private fun WorkDetailScreen(
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     MetricChip(Icons.Outlined.Tag, loaded.state)
-                                    loaded.labels.forEach { MetricChip(Icons.Outlined.Tag, it) }
+                                    loaded.labelDetails.forEach { GitLabLabelChip(it) }
+                                }
+
+                                if (loaded.assignees.isNotEmpty()) {
+                                    DetailPeopleSection(
+                                        title = "Assignees",
+                                        users = loaded.assignees,
+                                        onUserClick = onUserClick
+                                    )
+                                }
+
+                                if (loaded.target is DetailTarget.Issue) {
+                                    DetailRelationSection(
+                                        title = "Parent",
+                                        emptyText = "None",
+                                        items = listOfNotNull(loaded.parentItem),
+                                        onGitLabLinkClick = onGitLabLinkClick
+                                    )
+                                    DetailRelationSection(
+                                        title = "Child items",
+                                        emptyText = "None",
+                                        items = loaded.childItems,
+                                        onGitLabLinkClick = onGitLabLinkClick
+                                    )
+                                    DetailRelationSection(
+                                        title = "Linked items",
+                                        emptyText = "None",
+                                        items = loaded.linkedItems,
+                                        onGitLabLinkClick = onGitLabLinkClick
+                                    )
                                 }
                                 
                                 EmojiRow(
@@ -2877,6 +2908,172 @@ private fun LabelRow(labels: List<String>) {
             AssistChip(onClick = {}, label = { Text(label) })
         }
     }
+}
+
+@Composable
+private fun GitLabLabelChip(label: GitLabLabel) {
+    val background = gitLabColor(label.color, MaterialTheme.colorScheme.secondaryContainer)
+    val content = gitLabColor(label.textColor, readableOn(background))
+    AssistChip(
+        onClick = {},
+        leadingIcon = {
+            Icon(
+                Icons.Outlined.Tag,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = content
+            )
+        },
+        label = {
+            Text(
+                label.name,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = content
+            )
+        },
+        border = BorderStroke(1.dp, content.copy(alpha = 0.35f)),
+        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+            containerColor = background,
+            labelColor = content,
+            leadingIconContentColor = content
+        ),
+        modifier = Modifier.widthIn(min = 0.dp, max = 220.dp)
+    )
+}
+
+@Composable
+private fun DetailPeopleSection(
+    title: String,
+    users: List<GitLabUser>,
+    onUserClick: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            users.forEach { user ->
+                Surface(
+                    onClick = { onUserClick(user.username) },
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        UserAvatar(user = user, size = 26)
+                        Text(
+                            user.name.ifBlank { "@${user.username}" },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.widthIn(max = 180.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRelationSection(
+    title: String,
+    emptyText: String,
+    items: List<GitLabRelatedItem>,
+    onGitLabLinkClick: (String) -> Boolean
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (items.isEmpty()) {
+            Text(
+                emptyText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items.take(5).forEach { item ->
+                    Surface(
+                        onClick = { item.webUrl?.let { onGitLabLinkClick(it) } },
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.AccountTree,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    item.title.ifBlank { item.reference ?: "Related item" },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                val meta = listOfNotNull(
+                                    item.reference,
+                                    item.state.takeIf { it.isNotBlank() }
+                                ).distinct().joinToString(" · ")
+                                if (meta.isNotBlank()) {
+                                    Text(
+                                        meta,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                if (items.size > 5) {
+                    Text(
+                        "+ ${items.size - 5} more",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun gitLabColor(value: String?, fallback: Color): Color {
+    val clean = value?.trim()?.removePrefix("#") ?: return fallback
+    if (clean.length != 6) return fallback
+    val parsed = clean.toLongOrNull(16) ?: return fallback
+    return Color((0xFF000000L or parsed).toInt())
+}
+
+private fun readableOn(background: Color): Color {
+    val luminance = (background.red * 0.299f) + (background.green * 0.587f) + (background.blue * 0.114f)
+    return if (luminance > 0.58f) Color(0xFF1F1F24) else Color.White
 }
 
 @Composable
