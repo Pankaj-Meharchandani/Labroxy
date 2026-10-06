@@ -47,6 +47,10 @@ class GitLabRepository(
     suspend fun commits(projectId: Long): List<GitLabCommit> = api.commits(projectId)
     suspend fun branches(projectId: Long): List<GitLabBranch> = api.branches(projectId)
     suspend fun boards(projectId: Long): List<GitLabBoard> = api.boards(projectId)
+    suspend fun milestones(): List<GitLabMilestone> = api.milestones()
+    suspend fun projectMilestones(projectId: Long): List<GitLabMilestone> = api.projectMilestones(projectId)
+    suspend fun snippets(): List<GitLabSnippet> = api.snippets()
+    suspend fun projectPipelines(projectId: Long): List<GitLabPipeline> = api.projectPipelines(projectId)
 
     suspend fun uploadFile(projectId: Long, file: ByteArray, fileName: String): GitLabUpload =
         api.uploadFile(projectId, file, fileName)

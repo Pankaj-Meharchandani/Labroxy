@@ -35,7 +35,10 @@ data class CachedDashboard(
     val todos: List<GitLabTodo> = emptyList(),
     val doneTodos: List<GitLabTodo> = emptyList(),
     val events: List<GitLabEvent> = emptyList(),
-    val projectEvents: List<GitLabEvent> = emptyList()
+    val projectEvents: List<GitLabEvent> = emptyList(),
+    val milestones: List<GitLabMilestone> = emptyList(),
+    val snippets: List<GitLabSnippet> = emptyList(),
+    val pipelines: List<GitLabPipeline> = emptyList()
 )
 
 class SessionStore(private val context: Context) {
@@ -52,6 +55,9 @@ class SessionStore(private val context: Context) {
     private val doneTodosCacheKey = stringPreferencesKey("cache_done_todos")
     private val eventsCacheKey = stringPreferencesKey("cache_events")
     private val projectEventsCacheKey = stringPreferencesKey("cache_project_events")
+    private val milestonesCacheKey = stringPreferencesKey("cache_milestones")
+    private val snippetsCacheKey = stringPreferencesKey("cache_snippets")
+    private val pipelinesCacheKey = stringPreferencesKey("cache_pipelines")
     private val notifiedTodoIdsKey = stringPreferencesKey("notified_todo_ids")
     private val json = Json {
         ignoreUnknownKeys = true
@@ -83,7 +89,10 @@ class SessionStore(private val context: Context) {
             todos = decodeList(prefs[todosCacheKey], GitLabTodo.serializer()),
             doneTodos = decodeList(prefs[doneTodosCacheKey], GitLabTodo.serializer()),
             events = decodeList(prefs[eventsCacheKey], GitLabEvent.serializer()),
-            projectEvents = decodeList(prefs[projectEventsCacheKey], GitLabEvent.serializer())
+            projectEvents = decodeList(prefs[projectEventsCacheKey], GitLabEvent.serializer()),
+            milestones = decodeList(prefs[milestonesCacheKey], GitLabMilestone.serializer()),
+            snippets = decodeList(prefs[snippetsCacheKey], GitLabSnippet.serializer()),
+            pipelines = decodeList(prefs[pipelinesCacheKey], GitLabPipeline.serializer())
         )
     }
 
@@ -154,6 +163,18 @@ class SessionStore(private val context: Context) {
 
     suspend fun saveProjectEvents(events: List<GitLabEvent>) {
         context.dataStore.edit { it[projectEventsCacheKey] = json.encodeToString(events) }
+    }
+
+    suspend fun saveMilestones(milestones: List<GitLabMilestone>) {
+        context.dataStore.edit { it[milestonesCacheKey] = json.encodeToString(milestones) }
+    }
+
+    suspend fun saveSnippets(snippets: List<GitLabSnippet>) {
+        context.dataStore.edit { it[snippetsCacheKey] = json.encodeToString(snippets) }
+    }
+
+    suspend fun savePipelines(pipelines: List<GitLabPipeline>) {
+        context.dataStore.edit { it[pipelinesCacheKey] = json.encodeToString(pipelines) }
     }
 
     suspend fun saveNotifiedTodoIds(ids: Set<Long>) {
