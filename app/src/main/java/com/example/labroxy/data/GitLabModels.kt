@@ -61,7 +61,15 @@ data class GitLabIssue(
     val author: GitLabUser? = null,
     val assignee: GitLabUser? = null,
     val assignees: List<GitLabUser> = emptyList(),
-    @SerialName("award_emoji") val awardEmoji: List<GitLabAwardEmoji> = emptyList()
+    @SerialName("award_emoji") val awardEmoji: List<GitLabAwardEmoji> = emptyList(),
+    @SerialName("references") val references: GitLabIssueReferences? = null
+)
+
+@Serializable
+data class GitLabIssueReferences(
+    val short: String? = null,
+    val relative: String? = null,
+    val full: String? = null
 )
 
 @Serializable
@@ -86,9 +94,17 @@ data class GitLabRelatedItem(
 
 @Serializable
 data class GitLabIssueLink(
+    val id: Long = 0,
+    val iid: Long = 0,
+    val title: String = "",
+    val state: String = "",
+    @SerialName("project_id") val projectId: Long? = null,
+    @SerialName("web_url") val webUrl: String? = null,
+    @SerialName("issue_link_type") val issueLinkType: String? = null,
+    @SerialName("link_type") val linkType: String? = null,
     @SerialName("source_issue") val sourceIssue: GitLabIssue? = null,
     @SerialName("target_issue") val targetIssue: GitLabIssue? = null,
-    @SerialName("link_type") val linkType: String? = null
+    @SerialName("references") val references: GitLabIssueReferences? = null
 )
 
 @Serializable

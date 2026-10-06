@@ -542,9 +542,23 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     ?.filter { it.title.isNotBlank() }
                     .orEmpty()
                 val linkedFromIssues = issueLinks.mapNotNull { link ->
-                    val linked = listOfNotNull(link.sourceIssue, link.targetIssue)
+                    val nestedIssue = listOfNotNull(link.sourceIssue, link.targetIssue)
                         .firstOrNull { it.id != issue.id }
-                    linked?.toRelatedItem(link.linkType)
+                    if (nestedIssue != null) {
+                        nestedIssue.toRelatedItem(link.linkType ?: link.issueLinkType)
+                    } else if (link.id != 0L || link.title.isNotBlank()) {
+                        GitLabRelatedItem(
+                            id = link.id,
+                            iid = link.iid,
+                            title = link.title,
+                            state = link.state,
+                            projectId = link.projectId,
+                            webUrl = link.webUrl,
+                            reference = link.references?.relative ?: link.references?.full ?: link.references?.short ?: if (link.iid != 0L) "#${link.iid}" else null
+                        )
+                    } else {
+                        null
+                    }
                 }
                 val discussions = repo.issueDiscussions(target.projectId, target.issueIid)
                 WorkDetailData(
@@ -596,7 +610,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             state = linkType?.takeIf { it.isNotBlank() } ?: state,
             projectId = projectId,
             webUrl = webUrl,
-            reference = "#$iid"
+            reference = references?.relative ?: references?.full ?: references?.short ?: if (iid != 0L) "#$iid" else null
         )
 
     private suspend fun List<GitLabDiscussion>.withNoteAwardEmoji(

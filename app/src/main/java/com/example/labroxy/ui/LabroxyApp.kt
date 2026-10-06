@@ -2117,24 +2117,28 @@ private fun WorkDetailScreen(
                                 }
 
                                 if (loaded.target is DetailTarget.Issue) {
-                                    DetailRelationSection(
-                                        title = "Parent",
-                                        emptyText = "None",
-                                        items = listOfNotNull(loaded.parentItem),
-                                        onGitLabLinkClick = onGitLabLinkClick
-                                    )
-                                    DetailRelationSection(
-                                        title = "Child items",
-                                        emptyText = "None",
-                                        items = loaded.childItems,
-                                        onGitLabLinkClick = onGitLabLinkClick
-                                    )
-                                    DetailRelationSection(
-                                        title = "Linked items",
-                                        emptyText = "None",
-                                        items = loaded.linkedItems,
-                                        onGitLabLinkClick = onGitLabLinkClick
-                                    )
+                                    if (loaded.parentItem != null) {
+                                        DetailRelationSection(
+                                            title = "Parent",
+                                            items = listOf(loaded.parentItem),
+                                            onGitLabLinkClick = onGitLabLinkClick
+                                        )
+                                    } else {
+                                        if (loaded.childItems.isNotEmpty()) {
+                                            DetailRelationSection(
+                                                title = "Child items",
+                                                items = loaded.childItems,
+                                                onGitLabLinkClick = onGitLabLinkClick
+                                            )
+                                        }
+                                        if (loaded.linkedItems.isNotEmpty()) {
+                                            DetailRelationSection(
+                                                title = "Linked items",
+                                                items = loaded.linkedItems,
+                                                onGitLabLinkClick = onGitLabLinkClick
+                                            )
+                                        }
+                                    }
                                 }
                                 
                                 EmojiRow(
@@ -2989,10 +2993,10 @@ private fun DetailPeopleSection(
 @Composable
 private fun DetailRelationSection(
     title: String,
-    emptyText: String,
     items: List<GitLabRelatedItem>,
     onGitLabLinkClick: (String) -> Boolean
 ) {
+    if (items.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             title,
@@ -3000,14 +3004,7 @@ private fun DetailRelationSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold
         )
-        if (items.isEmpty()) {
-            Text(
-                emptyText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items.take(5).forEach { item ->
                     Surface(
                         onClick = { item.webUrl?.let { onGitLabLinkClick(it) } },
@@ -3062,7 +3059,6 @@ private fun DetailRelationSection(
             }
         }
     }
-}
 
 private fun gitLabColor(value: String?, fallback: Color): Color {
     val clean = value?.trim()?.removePrefix("#") ?: return fallback
