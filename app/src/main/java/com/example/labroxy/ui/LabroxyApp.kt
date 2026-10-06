@@ -1564,12 +1564,26 @@ private fun NoteBody(
                             )
                         },
                         leadingIcon = { Icon(Icons.Outlined.TaskAlt, null, Modifier.size(16.dp)) },
-                        label = { Text(reference.label) }
+                        label = {
+                            Text(
+                                reference.label,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        modifier = Modifier.widthIn(max = 260.dp)
                     )
                 }
             }
         }
     }
+}
+
+private fun compactGitLabDate(value: String?): String {
+    if (value.isNullOrBlank()) return ""
+    val date = value.substringBefore("T")
+    val time = value.substringAfter("T", "").take(5)
+    return listOf(date, time).filter { it.isNotBlank() }.joinToString(" ")
 }
 
 private sealed class NoteSegment {
@@ -2398,32 +2412,69 @@ private fun SystemNoteRow(
     onGitLabLinkClick: (String) -> Boolean,
     onUserClick: (String) -> Unit
 ) {
+    val author = note.author
+    val authorName = author?.name ?: author?.username ?: "GitLab"
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .padding(start = 14.dp)
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.outlineVariant)
-        )
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        Column(
+            modifier = Modifier.width(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                note.author?.name ?: note.author?.username ?: "GitLab",
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.clickable { note.author?.username?.let { onUserClick(it) } }
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.75f))
             )
-            Box(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(42.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+            )
+        }
+
+        Surface(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        authorName,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(enabled = author?.username != null) {
+                                author?.username?.let { onUserClick(it) }
+                            }
+                    )
+                    Text(
+                        compactGitLabDate(note.createdAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
                 NoteBody(
                     body = note.body,
                     session = session,
@@ -2433,12 +2484,6 @@ private fun SystemNoteRow(
                     onUserClick = onUserClick
                 )
             }
-            Text(
-                note.createdAt ?: "",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
         }
     }
 }
