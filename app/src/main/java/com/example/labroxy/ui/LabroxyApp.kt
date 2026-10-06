@@ -2,6 +2,7 @@
 
 package com.example.labroxy.ui
 
+import android.Manifest
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -114,7 +115,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -149,6 +149,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
@@ -264,10 +265,6 @@ fun LabroxyApp(
                     },
                     onTodoClick = {
                         viewModel.loadTodo(it)
-                        screen = Screen.Detail
-                    },
-                    onEventClick = {
-                        viewModel.loadEvent(it)
                         screen = Screen.Detail
                     },
                     settings = settings,
@@ -519,7 +516,6 @@ private fun DashboardScreen(
     onIssueClick: (GitLabIssue) -> Unit,
     onMergeRequestClick: (GitLabMergeRequest) -> Unit,
     onTodoClick: (GitLabTodo) -> Unit,
-    onEventClick: (GitLabEvent) -> Unit,
     settings: AppSettings,
     onThemeModeChange: (String) -> Unit,
     onPushNotificationsChange: (Boolean) -> Unit,
@@ -603,12 +599,8 @@ private fun DashboardScreen(
                             WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests.filteredMergeRequests(query), onMergeRequestClick)
                             WorkSection.Todos -> todoItems(data.todos.filteredTodos(query), onTodoClick)
                             WorkSection.Notifications -> notificationItems(
-                                todos = (data.todos + data.doneTodos).filteredTodos(query),
-                                events = data.events.filteredEvents(query),
-                                projectEvents = data.projectEvents.filteredEvents(query),
-                                currentUserId = data.user.id,
-                                onTodoClick = onTodoClick,
-                                onEventClick = onEventClick
+                                todos = data.todos.filteredTodos(query),
+                                onTodoClick = onTodoClick
                             )
                             WorkSection.Settings -> item {
                                 SettingsScreen(
@@ -787,6 +779,16 @@ private fun SettingsScreen(
     
     var syncInterval by remember { mutableStateOf("15 mins") }
     var showIntervalDropdown by remember { mutableStateOf(false) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            onPushNotificationsChange(true)
+        } else {
+            onPushNotificationsChange(false)
+            Toast.makeText(context, "Notification permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -848,14 +850,23 @@ private fun SettingsScreen(
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Push Notifications", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "Allow $appName to notify you about GitLab updates.",
+                            "Notify you when new GitLab to-do items arrive.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
                     Switch(
                         checked = settings.pushNotifications,
-                        onCheckedChange = onPushNotificationsChange
+                        onCheckedChange = { enabled ->
+                            if (enabled &&
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                onPushNotificationsChange(enabled)
+                            }
+                        }
                     )
                 }
 
@@ -869,7 +880,7 @@ private fun SettingsScreen(
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Notification Sound", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "Play sound for comments, issues, and MR activities.",
+                            "Play sound for new GitLab to-do alerts.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -890,7 +901,7 @@ private fun SettingsScreen(
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Haptic Feedback", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "Vibrate device on important notification updates.",
+                            "Vibrate device on new to-do alerts.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -1410,49 +1421,21 @@ private fun androidx.compose.foundation.lazy.LazyListScope.todoItems(todos: List
 
 private fun androidx.compose.foundation.lazy.LazyListScope.notificationItems(
     todos: List<GitLabTodo>,
-    events: List<GitLabEvent>,
-    projectEvents: List<GitLabEvent>,
-    currentUserId: Long,
-    onTodoClick: (GitLabTodo) -> Unit,
-    onEventClick: (GitLabEvent) -> Unit
+    onTodoClick: (GitLabTodo) -> Unit
 ) {
-    val items = (todos.map { it to "todo" } + events.map { it to "event" } + projectEvents.map { it to "event" })
-        .filter { (item, type) ->
-            val authorId = if (type == "todo") (item as GitLabTodo).author?.id else (item as GitLabEvent).author?.id
-            // Only filter if we have a valid author and it matches current user.
-            // This ensures comments from unknown sources or if author parsing is missing still show up.
-            authorId == null || authorId != currentUserId
-        }
-        .distinctBy { (item, type) ->
-            if (type == "todo") "todo-${(item as GitLabTodo).id}" else "event-${(item as GitLabEvent).id}"
-        }
-        .sortedByDescending { (item, type) ->
-            if (type == "todo") (item as GitLabTodo).createdAt else (item as GitLabEvent).createdAt
-        }
+    val items = todos.distinctBy { it.id }.sortedByDescending { it.createdAt }
 
     if (items.isEmpty()) {
-        item { EmptyBlock("No notifications yet.") }
+        item { EmptyBlock("No pending GitLab to-dos.") }
     } else {
-        items(items) { (item, type) ->
-            if (type == "todo") {
-                val todo = item as GitLabTodo
-                ListCard(
-                    icon = Icons.Outlined.NotificationsActive,
-                    user = todo.author,
-                    title = todo.target?.title ?: todo.body ?: todo.targetType,
-                    meta = "${todo.action} - ${todo.targetType}${todo.project?.name?.let { " in $it" } ?: ""} (${todo.state})",
-                    onClick = { onTodoClick(todo) }
-                )
-            } else {
-                val event = item as GitLabEvent
-                ListCard(
-                    icon = Icons.Outlined.History,
-                    user = event.author,
-                    title = event.targetTitle ?: event.targetType ?: "GitLab activity",
-                    meta = "${event.author?.username ?: "Someone"} ${event.displayAction}",
-                    onClick = { onEventClick(event) }
-                )
-            }
+        items(items, key = { it.id }) { todo ->
+            ListCard(
+                icon = Icons.Outlined.NotificationsActive,
+                user = todo.author,
+                title = todo.target?.title ?: todo.body ?: todo.targetType,
+                meta = "${todo.action} - ${todo.targetType}${todo.project?.name?.let { " in $it" } ?: ""}",
+                onClick = { onTodoClick(todo) }
+            )
         }
     }
 }

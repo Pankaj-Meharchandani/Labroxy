@@ -73,15 +73,16 @@ data class GitLabTodoTarget(
 
 @Serializable
 data class GitLabTodo(
-    val id: Long,
-    val action: String,
-    val state: String,
-    @SerialName("target_type") val targetType: String,
+    val id: Long = 0,
+    @SerialName("action_name") val action: String = "updated",
+    val state: String = "",
+    @SerialName("target_type") val targetType: String = "To-Do",
     @SerialName("body") val body: String? = null,
     val project: GitLabProject? = null,
     val target: GitLabTodoTarget? = null,
     val author: GitLabUser? = null,
-    @SerialName("created_at") val createdAt: String? = null
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("target_url") val targetUrl: String? = null
 )
 
 @Serializable

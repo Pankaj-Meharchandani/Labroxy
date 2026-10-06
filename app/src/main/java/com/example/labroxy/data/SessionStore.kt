@@ -52,6 +52,7 @@ class SessionStore(private val context: Context) {
     private val doneTodosCacheKey = stringPreferencesKey("cache_done_todos")
     private val eventsCacheKey = stringPreferencesKey("cache_events")
     private val projectEventsCacheKey = stringPreferencesKey("cache_project_events")
+    private val notifiedTodoIdsKey = stringPreferencesKey("notified_todo_ids")
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -84,6 +85,14 @@ class SessionStore(private val context: Context) {
             events = decodeList(prefs[eventsCacheKey], GitLabEvent.serializer()),
             projectEvents = decodeList(prefs[projectEventsCacheKey], GitLabEvent.serializer())
         )
+    }
+
+    val notifiedTodoIds: Flow<Set<Long>> = context.dataStore.data.map { prefs ->
+        prefs[notifiedTodoIdsKey]
+            ?.split(",")
+            ?.mapNotNull { it.toLongOrNull() }
+            ?.toSet()
+            ?: emptySet()
     }
 
     suspend fun save(host: String, token: String) {
@@ -145,6 +154,12 @@ class SessionStore(private val context: Context) {
 
     suspend fun saveProjectEvents(events: List<GitLabEvent>) {
         context.dataStore.edit { it[projectEventsCacheKey] = json.encodeToString(events) }
+    }
+
+    suspend fun saveNotifiedTodoIds(ids: Set<Long>) {
+        context.dataStore.edit { prefs ->
+            prefs[notifiedTodoIdsKey] = ids.joinToString(",")
+        }
     }
 
     private fun <T> decodeList(value: String?, serializer: kotlinx.serialization.KSerializer<T>): List<T> =

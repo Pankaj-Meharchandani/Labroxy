@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.labroxy.notifications.TodoNotificationWorker
 import com.example.labroxy.data.GitLabAwardEmoji
 import com.example.labroxy.data.GitLabBoard
 import com.example.labroxy.data.GitLabBranch
@@ -223,18 +224,21 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
     fun setPushNotifications(enabled: Boolean) {
         viewModelScope.launch {
             sessionStore.savePushNotifications(enabled)
+            TodoNotificationWorker.setEnabled(getApplication(), enabled)
         }
     }
 
     fun saveSession(host: String, token: String) {
         viewModelScope.launch {
             sessionStore.save(host, token)
+            TodoNotificationWorker.setEnabled(getApplication(), settings.value.pushNotifications)
             query.value = query.value
         }
     }
 
     fun signOut() {
         viewModelScope.launch {
+            TodoNotificationWorker.setEnabled(getApplication(), false)
             sessionStore.clear()
         }
     }
