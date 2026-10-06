@@ -125,5 +125,5 @@ If you'd like to contribute:
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by Pankaj Meharchandani and contributors.</sub>
+  <sub>Built with ❤️ by Pankaj Meharchandani.</sub>
 </p>

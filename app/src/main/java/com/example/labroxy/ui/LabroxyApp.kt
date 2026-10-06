@@ -33,7 +33,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.MergeType
@@ -130,6 +130,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -169,8 +171,7 @@ private enum class WorkSection(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Outlined.Home),
     Projects("Projects", Icons.Outlined.Folder),
     Groups("Groups", Icons.Outlined.AccountTree),
-    Assigned("Assigned", Icons.Outlined.TaskAlt),
-    MergeRequests("Merge requests", Icons.AutoMirrored.Outlined.MergeType),
+    Assigned("Assigned", Icons.AutoMirrored.Outlined.Assignment),    MergeRequests("Merge requests", Icons.AutoMirrored.Outlined.MergeType),
     Todos("To-Do List", Icons.Outlined.TaskAlt),
     Notifications("Notifications", Icons.Outlined.History),
     Settings("Settings", Icons.Outlined.Settings)
@@ -836,7 +837,7 @@ private fun ActivityCard(event: GitLabEvent, onClick: () -> Unit) {
         ?: "${event.displayAction.replaceFirstChar { it.uppercase() }} ${event.targetType.orEmpty()}"
     val meta = "${event.displayAction} ${event.targetType.orEmpty()} ${compactGitLabDate(event.createdAt)}".trim()
     val icon = when (event.targetType) {
-        "Issue", "WorkItem" -> Icons.Outlined.TaskAlt
+        "Issue", "WorkItem" -> Icons.AutoMirrored.Outlined.Assignment
         "MergeRequest" -> Icons.AutoMirrored.Outlined.MergeType
         else -> Icons.Outlined.History
     }
