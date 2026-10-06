@@ -518,7 +518,9 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         when (target) {
             is DetailTarget.Issue -> {
                 val issue = repo.issue(target.projectId, target.issueIid)
-                val emoji = runCatching { repo.getAwardEmoji("projects/${target.projectId}/issues/${target.issueIid}") }.getOrDefault(emptyList())
+                val path = "projects/${target.projectId}/issues/${target.issueIid}"
+                val emoji = runCatching { repo.getAwardEmoji(path) }.getOrDefault(emptyList())
+                val discussions = repo.issueDiscussions(target.projectId, target.issueIid)
                 WorkDetailData(
                     target = target,
                     title = "#${issue.iid} ${issue.title}",
@@ -527,13 +529,15 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     description = issue.description,
                     webUrl = issue.webUrl,
                     labels = issue.labels,
-                    discussions = repo.issueDiscussions(target.projectId, target.issueIid),
+                    discussions = discussions.withNoteAwardEmoji(repo, path),
                     awardEmoji = emoji
                 )
             }
             is DetailTarget.MergeRequest -> {
                 val mr = repo.mergeRequest(target.projectId, target.mergeRequestIid)
-                val emoji = runCatching { repo.getAwardEmoji("projects/${target.projectId}/merge_requests/${target.mergeRequestIid}") }.getOrDefault(emptyList())
+                val path = "projects/${target.projectId}/merge_requests/${target.mergeRequestIid}"
+                val emoji = runCatching { repo.getAwardEmoji(path) }.getOrDefault(emptyList())
+                val discussions = repo.mergeRequestDiscussions(target.projectId, target.mergeRequestIid)
                 WorkDetailData(
                     target = target,
                     title = "!${mr.iid} ${mr.title}",
@@ -541,10 +545,25 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     state = mr.state,
                     description = mr.description,
                     webUrl = mr.webUrl,
-                    discussions = repo.mergeRequestDiscussions(target.projectId, target.mergeRequestIid),
+                    discussions = discussions.withNoteAwardEmoji(repo, path),
                     awardEmoji = emoji
                 )
             }
+        }
+
+    private suspend fun List<GitLabDiscussion>.withNoteAwardEmoji(
+        repo: GitLabRepository,
+        targetPath: String
+    ): List<GitLabDiscussion> =
+        map { discussion ->
+            discussion.copy(
+                notes = discussion.notes.map { note ->
+                    val awards = runCatching {
+                        repo.getAwardEmoji("$targetPath/notes/${note.id}")
+                    }.getOrDefault(note.awardEmoji)
+                    note.copy(awardEmoji = awards)
+                }
+            )
         }
 
     private fun DashboardData.withCache(cache: CachedDashboard): DashboardData =

@@ -121,13 +121,13 @@ data class GitLabEvent(
 
 @Serializable
 data class GitLabAwardEmoji(
-    val id: Long,
-    val name: String,
-    val user: GitLabUser,
+    val id: Long = 0,
+    val name: String = "",
+    val user: GitLabUser = GitLabUser(id = 0, username = "gitlab", name = "GitLab"),
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
-    @SerialName("awardable_id") val awardableId: Long,
-    @SerialName("awardable_type") val awardableType: String
+    @SerialName("awardable_id") val awardableId: Long = 0,
+    @SerialName("awardable_type") val awardableType: String = ""
 )
 
 @Serializable
