@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Pankaj-Meharchandani/Labroxy/main/assets/logo.png" alt="Labroxy Logo" width="180" height="170" />
+  <img src="https://raw.githubusercontent.com/Pankaj-Meharchandani/Labroxy/master/assets/logo.png" alt="Labroxy Logo" height="170" />
 </p>
 
 <h1 align="center">Labroxy</h1>
