@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 data class DashboardData(
     val user: GitLabUser,
@@ -106,6 +108,7 @@ data class UserData(
 @OptIn(ExperimentalCoroutinesApi::class)
 class LabroxyViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionStore = SessionStore(application)
+    private val projectLabelCache = mutableMapOf<Long, List<GitLabLabel>>()
 
     val session: StateFlow<GitLabSession> = sessionStore.session.stateIn(
         viewModelScope,
@@ -237,6 +240,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
 
     fun saveSession(host: String, token: String) {
         viewModelScope.launch {
+            projectLabelCache.clear()
             sessionStore.save(host, token)
             TodoNotificationWorker.setEnabled(getApplication(), settings.value.pushNotifications)
             query.value = query.value
@@ -245,6 +249,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
 
     fun signOut() {
         viewModelScope.launch {
+            projectLabelCache.clear()
             TodoNotificationWorker.setEnabled(getApplication(), false)
             sessionStore.clear()
         }
@@ -526,12 +531,28 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             is DetailTarget.Issue -> {
                 val issue = repo.issue(target.projectId, target.issueIid)
                 val path = "projects/${target.projectId}/issues/${target.issueIid}"
-                val emoji = runCatching { repo.getAwardEmoji(path) }.getOrDefault(emptyList())
-                val labelDetails = runCatching {
-                    repo.projectLabels(target.projectId).orderedFor(issue.labels)
-                }.getOrDefault(issue.labels.map { GitLabLabel(name = it) })
-                val workItem = runCatching { repo.workItem(target.projectId, target.issueIid) }.getOrNull()
-                val issueLinks = runCatching { repo.issueLinks(target.projectId, target.issueIid) }.getOrDefault(emptyList())
+                val fallbackLabels = issue.labels.map { GitLabLabel(name = it) }
+                val detailParts = coroutineScope {
+                    val emoji = async { runCatching { repo.getAwardEmoji(path) }.getOrDefault(emptyList()) }
+                    val labels = async {
+                        runCatching { repo.cachedProjectLabels(target.projectId).orderedFor(issue.labels) }
+                            .getOrDefault(fallbackLabels)
+                    }
+                    val workItem = async { runCatching { repo.workItem(target.projectId, target.issueIid) }.getOrNull() }
+                    val issueLinks = async {
+                        runCatching { repo.issueLinks(target.projectId, target.issueIid) }.getOrDefault(emptyList())
+                    }
+                    val discussions = async { repo.issueDiscussions(target.projectId, target.issueIid) }
+                    IssueDetailParts(
+                        emoji = emoji.await(),
+                        labelDetails = labels.await(),
+                        workItem = workItem.await(),
+                        issueLinks = issueLinks.await(),
+                        discussions = discussions.await()
+                    )
+                }
+                val workItem = detailParts.workItem
+                val issueLinks = detailParts.issueLinks
                 val parent = workItem?.widgets?.firstNotNullOfOrNull { it.parent?.takeIf { item -> item.title.isNotBlank() } }
                 val children = workItem?.widgets
                     ?.flatMap { it.children?.nodes.orEmpty() }
@@ -560,7 +581,6 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                         null
                     }
                 }
-                val discussions = repo.issueDiscussions(target.projectId, target.issueIid)
                 WorkDetailData(
                     target = target,
                     title = "#${issue.iid} ${issue.title}",
@@ -569,21 +589,24 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     description = issue.description,
                     webUrl = issue.webUrl,
                     labels = issue.labels,
-                    labelDetails = labelDetails,
+                    labelDetails = detailParts.labelDetails,
                     assignees = issue.assignees.ifEmpty { listOfNotNull(issue.assignee) },
                     parentItem = parent,
                     childItems = children.distinctBy { it.id.takeIf { id -> id != 0L } ?: it.webUrl.hashCode().toLong() },
                     linkedItems = (linkedFromWorkItem + linkedFromIssues)
                         .distinctBy { it.id.takeIf { id -> id != 0L } ?: it.webUrl.hashCode().toLong() },
-                    discussions = discussions.withNoteAwardEmoji(repo, path),
-                    awardEmoji = emoji
+                    discussions = detailParts.discussions.withNoteAwardEmoji(repo, path),
+                    awardEmoji = detailParts.emoji
                 )
             }
             is DetailTarget.MergeRequest -> {
                 val mr = repo.mergeRequest(target.projectId, target.mergeRequestIid)
                 val path = "projects/${target.projectId}/merge_requests/${target.mergeRequestIid}"
-                val emoji = runCatching { repo.getAwardEmoji(path) }.getOrDefault(emptyList())
-                val discussions = repo.mergeRequestDiscussions(target.projectId, target.mergeRequestIid)
+                val detailParts = coroutineScope {
+                    val emoji = async { runCatching { repo.getAwardEmoji(path) }.getOrDefault(emptyList()) }
+                    val discussions = async { repo.mergeRequestDiscussions(target.projectId, target.mergeRequestIid) }
+                    emoji.await() to discussions.await()
+                }
                 WorkDetailData(
                     target = target,
                     title = "!${mr.iid} ${mr.title}",
@@ -591,11 +614,26 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     state = mr.state,
                     description = mr.description,
                     webUrl = mr.webUrl,
-                    discussions = discussions.withNoteAwardEmoji(repo, path),
-                    awardEmoji = emoji
+                    discussions = detailParts.second.withNoteAwardEmoji(repo, path),
+                    awardEmoji = detailParts.first
                 )
             }
         }
+
+    private data class IssueDetailParts(
+        val emoji: List<GitLabAwardEmoji>,
+        val labelDetails: List<GitLabLabel>,
+        val workItem: com.example.labroxy.data.GitLabWorkItemDetail?,
+        val issueLinks: List<com.example.labroxy.data.GitLabIssueLink>,
+        val discussions: List<GitLabDiscussion>
+    )
+
+    private suspend fun GitLabRepository.cachedProjectLabels(projectId: Long): List<GitLabLabel> {
+        projectLabelCache[projectId]?.let { return it }
+        val labels = projectLabels(projectId)
+        projectLabelCache[projectId] = labels
+        return labels
+    }
 
     private fun List<GitLabLabel>.orderedFor(names: List<String>): List<GitLabLabel> =
         names.map { name ->
@@ -616,17 +654,23 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
     private suspend fun List<GitLabDiscussion>.withNoteAwardEmoji(
         repo: GitLabRepository,
         targetPath: String
-    ): List<GitLabDiscussion> =
+    ): List<GitLabDiscussion> = coroutineScope {
+        val semaphore = Semaphore(6)
         map { discussion ->
             discussion.copy(
                 notes = discussion.notes.map { note ->
-                    val awards = runCatching {
-                        repo.getAwardEmoji("$targetPath/notes/${note.id}")
-                    }.getOrDefault(note.awardEmoji)
-                    note.copy(awardEmoji = awards)
-                }
+                    async {
+                        val awards = semaphore.withPermit {
+                            runCatching {
+                                repo.getAwardEmoji("$targetPath/notes/${note.id}")
+                            }.getOrDefault(note.awardEmoji)
+                        }
+                        note.copy(awardEmoji = awards)
+                    }
+                }.awaitAll()
             )
         }
+    }
 
     private fun DashboardData.withCache(cache: CachedDashboard): DashboardData =
         copy(
