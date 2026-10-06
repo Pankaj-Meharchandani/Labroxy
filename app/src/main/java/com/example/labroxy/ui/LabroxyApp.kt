@@ -68,7 +68,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -116,24 +115,14 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.SettingsSuggest
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.NotificationsActive
-import androidx.compose.material.icons.outlined.VolumeUp
-import androidx.compose.material.icons.outlined.Vibration
-import androidx.compose.material.icons.outlined.Cached
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -710,7 +699,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
     item { HomeNavRow(WorkSection.Assigned, data.assignedWorkItems.size, onSectionChange) }
     item { HomeNavRow(WorkSection.MergeRequests, data.assignedMergeRequests.size, onSectionChange) }
     item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
+   // item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
 }
 
 private fun List<GitLabProject>.filteredProjects(query: String): List<GitLabProject> =
