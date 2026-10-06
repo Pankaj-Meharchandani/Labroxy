@@ -669,6 +669,7 @@ private fun WorkDrawer(
             )
             WorkSection.entries
                 .filterNot { it == WorkSection.Notifications }
+                /*
                 .filter { section ->
                     when (section) {
                         WorkSection.Home, WorkSection.Settings -> true
@@ -680,6 +681,7 @@ private fun WorkDrawer(
                         WorkSection.Notifications -> settings.showNotificationsTab
                     }
                 }
+                */
                 .forEach { section ->
                     NavigationDrawerItem(
                         selected = selected == section,
@@ -759,9 +761,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
     if (settings.showTodosTab) {
         item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
     }
+    /*
     if (settings.showNotificationsTab) {
         item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
     }
+    */
     if (settings.showActivities) {
         item {
             RecentActivitiesSection(
@@ -991,6 +995,7 @@ private fun SettingsScreen(
                     onCheckedChange = onToggleTodosTab
                 )
 
+                /*
                 Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
 
                 SettingToggleRow(
@@ -999,6 +1004,7 @@ private fun SettingsScreen(
                     checked = settings.showNotificationsTab,
                     onCheckedChange = onToggleNotificationsTab
                 )
+                */
 
                 Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
 
