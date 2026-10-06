@@ -238,6 +238,34 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setShowProjectsTab(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveShowProjectsTab(enabled) }
+    }
+
+    fun setShowGroupsTab(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveShowGroupsTab(enabled) }
+    }
+
+    fun setShowAssignedTab(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveShowAssignedTab(enabled) }
+    }
+
+    fun setShowMergeRequestsTab(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveShowMergeRequestsTab(enabled) }
+    }
+
+    fun setShowTodosTab(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveShowTodosTab(enabled) }
+    }
+
+    fun setShowNotificationsTab(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveShowNotificationsTab(enabled) }
+    }
+
+    fun setShowActivities(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveShowActivities(enabled) }
+    }
+
     fun saveSession(host: String, token: String) {
         viewModelScope.launch {
             projectLabelCache.clear()

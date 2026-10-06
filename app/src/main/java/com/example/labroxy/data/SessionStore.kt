@@ -23,7 +23,14 @@ data class GitLabSession(
 
 data class AppSettings(
     val themeMode: String = "system",
-    val pushNotifications: Boolean = false
+    val pushNotifications: Boolean = false,
+    val showProjectsTab: Boolean = true,
+    val showGroupsTab: Boolean = true,
+    val showAssignedTab: Boolean = true,
+    val showMergeRequestsTab: Boolean = true,
+    val showTodosTab: Boolean = true,
+    val showNotificationsTab: Boolean = true,
+    val showActivities: Boolean = true
 )
 
 data class CachedDashboard(
@@ -43,6 +50,13 @@ class SessionStore(private val context: Context) {
     private val tokenKey = stringPreferencesKey("token")
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val pushNotificationsKey = booleanPreferencesKey("push_notifications")
+    private val showProjectsTabKey = booleanPreferencesKey("show_projects_tab")
+    private val showGroupsTabKey = booleanPreferencesKey("show_groups_tab")
+    private val showAssignedTabKey = booleanPreferencesKey("show_assigned_tab")
+    private val showMergeRequestsTabKey = booleanPreferencesKey("show_merge_requests_tab")
+    private val showTodosTabKey = booleanPreferencesKey("show_todos_tab")
+    private val showNotificationsTabKey = booleanPreferencesKey("show_notifications_tab")
+    private val showActivitiesKey = booleanPreferencesKey("show_activities")
     private val projectsCacheKey = stringPreferencesKey("cache_projects")
     private val groupsCacheKey = stringPreferencesKey("cache_groups")
     private val assignedWorkItemsCacheKey = stringPreferencesKey("cache_assigned_work_items")
@@ -69,7 +83,14 @@ class SessionStore(private val context: Context) {
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
             themeMode = prefs[themeModeKey] ?: "system",
-            pushNotifications = prefs[pushNotificationsKey] ?: false
+            pushNotifications = prefs[pushNotificationsKey] ?: false,
+            showProjectsTab = prefs[showProjectsTabKey] ?: true,
+            showGroupsTab = prefs[showGroupsTabKey] ?: true,
+            showAssignedTab = prefs[showAssignedTabKey] ?: true,
+            showMergeRequestsTab = prefs[showMergeRequestsTabKey] ?: true,
+            showTodosTab = prefs[showTodosTabKey] ?: true,
+            showNotificationsTab = prefs[showNotificationsTabKey] ?: true,
+            showActivities = prefs[showActivitiesKey] ?: true
         )
     }
 
@@ -118,6 +139,34 @@ class SessionStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[pushNotificationsKey] = enabled
         }
+    }
+
+    suspend fun saveShowProjectsTab(show: Boolean) {
+        context.dataStore.edit { it[showProjectsTabKey] = show }
+    }
+
+    suspend fun saveShowGroupsTab(show: Boolean) {
+        context.dataStore.edit { it[showGroupsTabKey] = show }
+    }
+
+    suspend fun saveShowAssignedTab(show: Boolean) {
+        context.dataStore.edit { it[showAssignedTabKey] = show }
+    }
+
+    suspend fun saveShowMergeRequestsTab(show: Boolean) {
+        context.dataStore.edit { it[showMergeRequestsTabKey] = show }
+    }
+
+    suspend fun saveShowTodosTab(show: Boolean) {
+        context.dataStore.edit { it[showTodosTabKey] = show }
+    }
+
+    suspend fun saveShowNotificationsTab(show: Boolean) {
+        context.dataStore.edit { it[showNotificationsTabKey] = show }
+    }
+
+    suspend fun saveShowActivities(show: Boolean) {
+        context.dataStore.edit { it[showActivitiesKey] = show }
     }
 
     suspend fun saveProjects(projects: List<GitLabProject>) {

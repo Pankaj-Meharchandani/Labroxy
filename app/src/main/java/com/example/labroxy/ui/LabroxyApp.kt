@@ -258,9 +258,22 @@ fun LabroxyApp(
                         viewModel.loadTodo(it)
                         screen = Screen.Detail
                     },
+                    onEventClick = {
+                        viewModel.loadEvent(it)
+                        if (it.projectId != null && it.targetIid != null && it.targetType in listOf("Issue", "WorkItem", "MergeRequest")) {
+                            screen = Screen.Detail
+                        }
+                    },
                     settings = settings,
                     onThemeModeChange = viewModel::setThemeMode,
                     onPushNotificationsChange = viewModel::setPushNotifications,
+                    onToggleProjectsTab = viewModel::setShowProjectsTab,
+                    onToggleGroupsTab = viewModel::setShowGroupsTab,
+                    onToggleAssignedTab = viewModel::setShowAssignedTab,
+                    onToggleMergeRequestsTab = viewModel::setShowMergeRequestsTab,
+                    onToggleTodosTab = viewModel::setShowTodosTab,
+                    onToggleNotificationsTab = viewModel::setShowNotificationsTab,
+                    onToggleActivities = viewModel::setShowActivities,
                     onAboutClick = { screen = Screen.About },
                     onSignOut = viewModel::signOut
                 )
@@ -507,9 +520,17 @@ private fun DashboardScreen(
     onIssueClick: (GitLabIssue) -> Unit,
     onMergeRequestClick: (GitLabMergeRequest) -> Unit,
     onTodoClick: (GitLabTodo) -> Unit,
+    onEventClick: (GitLabEvent) -> Unit,
     settings: AppSettings,
     onThemeModeChange: (String) -> Unit,
     onPushNotificationsChange: (Boolean) -> Unit,
+    onToggleProjectsTab: (Boolean) -> Unit,
+    onToggleGroupsTab: (Boolean) -> Unit,
+    onToggleAssignedTab: (Boolean) -> Unit,
+    onToggleMergeRequestsTab: (Boolean) -> Unit,
+    onToggleTodosTab: (Boolean) -> Unit,
+    onToggleNotificationsTab: (Boolean) -> Unit,
+    onToggleActivities: (Boolean) -> Unit,
     onAboutClick: () -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -527,6 +548,7 @@ private fun DashboardScreen(
             WorkDrawer(
                 selected = section,
                 state = state,
+                settings = settings,
                 onSectionChange = {
                     onSectionChange(it)
                     scope.launch { drawerState.close() }
@@ -577,7 +599,12 @@ private fun DashboardScreen(
                     is LoadState.Success -> {
                         val data = state.value
                         when (section) {
-                            WorkSection.Home -> homeItems(data, onSectionChange)
+                            WorkSection.Home -> homeItems(
+                                data = data,
+                                settings = settings,
+                                onSectionChange = onSectionChange,
+                                onEventClick = onEventClick
+                            )
                             WorkSection.Projects -> projectItems(data.projects.filteredProjects(query), onProjectClick)
                             WorkSection.Groups -> groupItems(data.groups.filteredGroups(query), onGroupClick)
                             WorkSection.Assigned -> assignedItems(
@@ -598,6 +625,13 @@ private fun DashboardScreen(
                                     settings = settings,
                                     onThemeModeChange = onThemeModeChange,
                                     onPushNotificationsChange = onPushNotificationsChange,
+                                    onToggleProjectsTab = onToggleProjectsTab,
+                                    onToggleGroupsTab = onToggleGroupsTab,
+                                    onToggleAssignedTab = onToggleAssignedTab,
+                                    onToggleMergeRequestsTab = onToggleMergeRequestsTab,
+                                    onToggleTodosTab = onToggleTodosTab,
+                                    onToggleNotificationsTab = onToggleNotificationsTab,
+                                    onToggleActivities = onToggleActivities,
                                     onAboutClick = onAboutClick
                                 )
                             }
@@ -613,6 +647,7 @@ private fun DashboardScreen(
 private fun WorkDrawer(
     selected: WorkSection,
     state: LoadState<DashboardData>,
+    settings: AppSettings,
     onSectionChange: (WorkSection) -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -632,27 +667,40 @@ private fun WorkDrawer(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
             )
-            WorkSection.entries.filterNot { it == WorkSection.Notifications }.forEach { section ->
-                NavigationDrawerItem(
-                    selected = selected == section,
-                    onClick = { onSectionChange(section) },
-                    icon = { Icon(section.icon, contentDescription = null) },
-                    label = { Text(section.label, fontWeight = FontWeight.SemiBold) },
-                    badge = { DrawerBadge(section, state) },
-                    modifier = Modifier.height(46.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                        unselectedContainerColor = Color.Transparent,
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
-                        selectedBadgeColor = MaterialTheme.colorScheme.primary,
-                        unselectedBadgeColor = MaterialTheme.colorScheme.onSurfaceVariant
+            WorkSection.entries
+                .filterNot { it == WorkSection.Notifications }
+                .filter { section ->
+                    when (section) {
+                        WorkSection.Home, WorkSection.Settings -> true
+                        WorkSection.Projects -> settings.showProjectsTab
+                        WorkSection.Groups -> settings.showGroupsTab
+                        WorkSection.Assigned -> settings.showAssignedTab
+                        WorkSection.MergeRequests -> settings.showMergeRequestsTab
+                        WorkSection.Todos -> settings.showTodosTab
+                        WorkSection.Notifications -> settings.showNotificationsTab
+                    }
+                }
+                .forEach { section ->
+                    NavigationDrawerItem(
+                        selected = selected == section,
+                        onClick = { onSectionChange(section) },
+                        icon = { Icon(section.icon, contentDescription = null) },
+                        label = { Text(section.label, fontWeight = FontWeight.SemiBold) },
+                        badge = { DrawerBadge(section, state) },
+                        modifier = Modifier.height(46.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                            unselectedContainerColor = Color.Transparent,
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            selectedBadgeColor = MaterialTheme.colorScheme.primary,
+                            unselectedBadgeColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
-                )
-            }
+                }
             Spacer(Modifier.weight(1f))
             NavigationDrawerItem(
                 selected = false,
@@ -691,15 +739,111 @@ private fun DrawerBadge(section: WorkSection, state: LoadState<DashboardData>) {
 
 private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
     data: DashboardData,
-    onSectionChange: (WorkSection) -> Unit
+    settings: AppSettings,
+    onSectionChange: (WorkSection) -> Unit,
+    onEventClick: (GitLabEvent) -> Unit
 ) {
     item { WelcomeBlock(data) }
-    item { HomeNavRow(WorkSection.Projects, data.projects.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.Groups, data.groups.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.Assigned, data.assignedWorkItems.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.MergeRequests, data.assignedMergeRequests.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
-   // item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
+    if (settings.showProjectsTab) {
+        item { HomeNavRow(WorkSection.Projects, data.projects.size, onSectionChange) }
+    }
+    if (settings.showGroupsTab) {
+        item { HomeNavRow(WorkSection.Groups, data.groups.size, onSectionChange) }
+    }
+    if (settings.showAssignedTab) {
+        item { HomeNavRow(WorkSection.Assigned, data.assignedWorkItems.size, onSectionChange) }
+    }
+    if (settings.showMergeRequestsTab) {
+        item { HomeNavRow(WorkSection.MergeRequests, data.assignedMergeRequests.size, onSectionChange) }
+    }
+    if (settings.showTodosTab) {
+        item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
+    }
+    if (settings.showNotificationsTab) {
+        item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
+    }
+    if (settings.showActivities) {
+        item {
+            RecentActivitiesSection(
+                data = data,
+                onEventClick = onEventClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecentActivitiesSection(
+    data: DashboardData,
+    onEventClick: (GitLabEvent) -> Unit
+) {
+    val recentActivities = remember(data.events, data.projectEvents, data.user) {
+        (data.events + data.projectEvents)
+            .distinctBy { it.id }
+            .filter { event ->
+                event.author?.id == data.user.id ||
+                (data.user.username.isNotBlank() && event.author?.username.equals(data.user.username, ignoreCase = true))
+            }
+            .sortedByDescending { it.createdAt }
+            .take(5)
+    }
+
+    if (recentActivities.isEmpty()) return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.History,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "RECENT ACTIVITIES",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.sp
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            recentActivities.forEach { event ->
+                ActivityCard(event = event, onClick = { onEventClick(event) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityCard(event: GitLabEvent, onClick: () -> Unit) {
+    val isClickable = event.projectId != null && event.targetIid != null &&
+            event.targetType in listOf("Issue", "WorkItem", "MergeRequest")
+    val title = event.targetTitle?.takeIf { it.isNotBlank() }
+        ?: "${event.displayAction.replaceFirstChar { it.uppercase() }} ${event.targetType.orEmpty()}"
+    val meta = "${event.displayAction} ${event.targetType.orEmpty()} ${compactGitLabDate(event.createdAt)}".trim()
+    val icon = when (event.targetType) {
+        "Issue", "WorkItem" -> Icons.Outlined.TaskAlt
+        "MergeRequest" -> Icons.AutoMirrored.Outlined.MergeType
+        else -> Icons.Outlined.History
+    }
+
+    ListCard(
+        icon = icon,
+        user = event.author,
+        title = title,
+        meta = meta,
+        onClick = if (isClickable) onClick else null
+    )
 }
 
 private fun List<GitLabProject>.filteredProjects(query: String): List<GitLabProject> =
@@ -754,6 +898,13 @@ private fun SettingsScreen(
     settings: AppSettings,
     onThemeModeChange: (String) -> Unit,
     onPushNotificationsChange: (Boolean) -> Unit,
+    onToggleProjectsTab: (Boolean) -> Unit,
+    onToggleGroupsTab: (Boolean) -> Unit,
+    onToggleAssignedTab: (Boolean) -> Unit,
+    onToggleMergeRequestsTab: (Boolean) -> Unit,
+    onToggleTodosTab: (Boolean) -> Unit,
+    onToggleNotificationsTab: (Boolean) -> Unit,
+    onToggleActivities: (Boolean) -> Unit,
     onAboutClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -787,6 +938,79 @@ private fun SettingsScreen(
             .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // --- HOME TABS & ACTIVITIES ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                SettingsSectionHeader(icon = Icons.Outlined.Home, title = "Home Screen Tabs & Activities")
+
+                SettingToggleRow(
+                    title = "Projects Tab",
+                    subtitle = "Show Projects card on home screen",
+                    checked = settings.showProjectsTab,
+                    onCheckedChange = onToggleProjectsTab
+                )
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                SettingToggleRow(
+                    title = "Groups Tab",
+                    subtitle = "Show Groups card on home screen",
+                    checked = settings.showGroupsTab,
+                    onCheckedChange = onToggleGroupsTab
+                )
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                SettingToggleRow(
+                    title = "Assigned Work Tab",
+                    subtitle = "Show Assigned Work card on home screen",
+                    checked = settings.showAssignedTab,
+                    onCheckedChange = onToggleAssignedTab
+                )
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                SettingToggleRow(
+                    title = "Merge Requests Tab",
+                    subtitle = "Show Merge Requests card on home screen",
+                    checked = settings.showMergeRequestsTab,
+                    onCheckedChange = onToggleMergeRequestsTab
+                )
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                SettingToggleRow(
+                    title = "To-Do List Tab",
+                    subtitle = "Show To-Do List card on home screen",
+                    checked = settings.showTodosTab,
+                    onCheckedChange = onToggleTodosTab
+                )
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                SettingToggleRow(
+                    title = "Notifications Tab",
+                    subtitle = "Show Notifications card on home screen",
+                    checked = settings.showNotificationsTab,
+                    onCheckedChange = onToggleNotificationsTab
+                )
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                SettingToggleRow(
+                    title = "Recent Activities",
+                    subtitle = "Show recent 5 activities below home screen tabs",
+                    checked = settings.showActivities,
+                    onCheckedChange = onToggleActivities
+                )
+            }
+        }
+
         // --- APPEARANCE ---
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -1103,6 +1327,32 @@ private fun SettingsSectionHeader(icon: ImageVector, title: String) {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
             letterSpacing = 1.sp
+        )
+    }
+}
+
+@Composable
+private fun SettingToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                subtitle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
         )
     }
 }
