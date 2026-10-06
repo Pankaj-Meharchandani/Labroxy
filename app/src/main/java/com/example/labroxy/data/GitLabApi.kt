@@ -115,27 +115,6 @@ class GitLabApi(
             parameter("per_page", 100)
         }
 
-    suspend fun milestones(state: String? = null): List<GitLabMilestone> =
-        getList("milestones", maxPages = 1) {
-            state?.let { parameter("state", it) }
-            parameter("per_page", 50)
-        }
-
-    suspend fun projectMilestones(projectId: Long): List<GitLabMilestone> =
-        getList("projects/$projectId/milestones", maxPages = 1) {
-            parameter("per_page", 50)
-        }
-
-    suspend fun snippets(): List<GitLabSnippet> =
-        getList("snippets", maxPages = 1) {
-            parameter("per_page", 50)
-        }
-
-    suspend fun projectPipelines(projectId: Long): List<GitLabPipeline> =
-        getList("projects/$projectId/pipelines", maxPages = 1) {
-            parameter("per_page", 20)
-        }
-
     suspend fun groupProjects(groupId: Long): List<GitLabProject> =
         getList("groups/$groupId/projects") {
             parameter("include_subgroups", true)

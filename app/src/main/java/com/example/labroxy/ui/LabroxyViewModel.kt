@@ -22,9 +22,6 @@ import com.example.labroxy.data.GitLabRepository
 import com.example.labroxy.data.GitLabSession
 import com.example.labroxy.data.GitLabTodo
 import com.example.labroxy.data.GitLabUser
-import com.example.labroxy.data.GitLabMilestone
-import com.example.labroxy.data.GitLabSnippet
-import com.example.labroxy.data.GitLabPipeline
 import com.example.labroxy.data.AppSettings
 import com.example.labroxy.data.CachedDashboard
 import com.example.labroxy.data.SessionStore
@@ -55,10 +52,7 @@ data class DashboardData(
     val todos: List<GitLabTodo> = emptyList(),
     val doneTodos: List<GitLabTodo> = emptyList(),
     val events: List<GitLabEvent> = emptyList(),
-    val projectEvents: List<GitLabEvent> = emptyList(),
-    val milestones: List<GitLabMilestone> = emptyList(),
-    val snippets: List<GitLabSnippet> = emptyList(),
-    val pipelines: List<GitLabPipeline> = emptyList()
+    val projectEvents: List<GitLabEvent> = emptyList()
 )
 
 data class ProjectData(
@@ -206,33 +200,6 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
 
                             data = data.copy(groups = runCatching { repo.groups("") }.getOrDefault(data.groups))
                             sessionStore.saveGroups(data.groups)
-                            emit(LoadState.Success(data))
-
-                            // 6. Milestones
-                            val fetchedMilestones = runCatching { repo.milestones() }.getOrNull()
-                                ?: data.projects.take(10).flatMap { p -> runCatching { repo.projectMilestones(p.id) }.getOrDefault(emptyList()) }
-                            data = data.copy(milestones = fetchedMilestones.distinctBy { it.id })
-                            sessionStore.saveMilestones(data.milestones)
-                            emit(LoadState.Success(data))
-
-                            // 7. Snippets
-                            data = data.copy(snippets = runCatching { repo.snippets() }.getOrDefault(data.snippets))
-                            sessionStore.saveSnippets(data.snippets)
-                            emit(LoadState.Success(data))
-
-                            // 8. Operations / Pipelines
-                            val allPipelines = java.util.Collections.synchronizedList(mutableListOf<GitLabPipeline>())
-                            coroutineScope {
-                                data.projects.take(10).forEach { project ->
-                                    async {
-                                        runCatching { repo.projectPipelines(project.id) }.getOrNull()?.let { list ->
-                                            allPipelines.addAll(list.map { it.copy(projectName = project.name) })
-                                        }
-                                    }
-                                }
-                            }
-                            data = data.copy(pipelines = allPipelines.toList().sortedByDescending { it.updatedAt ?: it.createdAt ?: "" })
-                            sessionStore.savePipelines(data.pipelines)
                             emit(LoadState.Success(data))
                         },
                         onFailure = { emit(LoadState.Error(it.toFriendlyMessage())) }
@@ -714,10 +681,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             assignedMergeRequests = cache.assignedMergeRequests,
             todos = cache.todos,
             events = cache.events,
-            projectEvents = cache.projectEvents,
-            milestones = cache.milestones,
-            snippets = cache.snippets,
-            pipelines = cache.pipelines
+            projectEvents = cache.projectEvents
         )
 }
 

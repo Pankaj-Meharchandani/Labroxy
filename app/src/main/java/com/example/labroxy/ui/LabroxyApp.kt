@@ -147,8 +147,6 @@ import coil.request.ImageRequest
 import com.example.labroxy.data.AppSettings
 import com.example.labroxy.data.GitLabAwardEmoji
 import com.example.labroxy.data.GitLabBoard
-import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.Build
 import com.example.labroxy.data.GitLabCommit
 import com.example.labroxy.data.GitLabDiscussion
 import com.example.labroxy.data.GitLabEvent
@@ -156,13 +154,10 @@ import com.example.labroxy.data.GitLabGroup
 import com.example.labroxy.data.GitLabIssue
 import com.example.labroxy.data.GitLabLabel
 import com.example.labroxy.data.GitLabMergeRequest
-import com.example.labroxy.data.GitLabMilestone
 import com.example.labroxy.data.GitLabNote
-import com.example.labroxy.data.GitLabPipeline
 import com.example.labroxy.data.GitLabProject
 import com.example.labroxy.data.GitLabRelatedItem
 import com.example.labroxy.data.GitLabSession
-import com.example.labroxy.data.GitLabSnippet
 import com.example.labroxy.data.GitLabTodo
 import com.example.labroxy.data.GitLabUser
 import com.example.labroxy.ui.theme.LabroxyTheme
@@ -177,11 +172,7 @@ private enum class WorkSection(val label: String, val icon: ImageVector) {
     Assigned("Assigned", Icons.Outlined.TaskAlt),
     MergeRequests("Merge requests", Icons.AutoMirrored.Outlined.MergeType),
     Todos("To-Do List", Icons.Outlined.TaskAlt),
-    Milestones("Milestones", Icons.Outlined.Flag),
-    Snippets("Snippets", Icons.Outlined.Code),
-    Activity("Activity", Icons.Outlined.History),
-    Operations("Operations", Icons.Outlined.Build),
-    Notifications("Notifications", Icons.Outlined.NotificationsNone),
+    Notifications("Notifications", Icons.Outlined.History),
     Settings("Settings", Icons.Outlined.Settings)
 }
 
@@ -598,10 +589,6 @@ private fun DashboardScreen(
                             )
                             WorkSection.MergeRequests -> mrItems(data.assignedMergeRequests.filteredMergeRequests(query), onMergeRequestClick)
                             WorkSection.Todos -> todoItems(data.todos.filteredTodos(query), onTodoClick)
-                            WorkSection.Milestones -> milestoneItems(data.milestones.filteredMilestones(query))
-                            WorkSection.Snippets -> snippetItems(data.snippets.filteredSnippets(query))
-                            WorkSection.Activity -> activityItems((data.events + data.projectEvents).distinctBy { it.id }.filteredEvents(query))
-                            WorkSection.Operations -> operationItems(data.pipelines.filteredPipelines(query))
                             WorkSection.Notifications -> notificationItems(
                                 todos = data.todos.filteredTodos(query),
                                 onTodoClick = onTodoClick
@@ -694,10 +681,6 @@ private fun DrawerBadge(section: WorkSection, state: LoadState<DashboardData>) {
         WorkSection.Assigned -> data.assignedWorkItems.size
         WorkSection.MergeRequests -> data.assignedMergeRequests.size
         WorkSection.Todos -> data.todos.size
-        WorkSection.Milestones -> data.milestones.size
-        WorkSection.Snippets -> data.snippets.size
-        WorkSection.Activity -> (data.events.size + data.projectEvents.size)
-        WorkSection.Operations -> data.pipelines.size
         WorkSection.Notifications -> data.events.size
         WorkSection.Settings -> null
     } ?: return
@@ -716,10 +699,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
     item { HomeNavRow(WorkSection.Assigned, data.assignedWorkItems.size, onSectionChange) }
     item { HomeNavRow(WorkSection.MergeRequests, data.assignedMergeRequests.size, onSectionChange) }
     item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.Milestones, data.milestones.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.Snippets, data.snippets.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.Activity, data.events.size + data.projectEvents.size, onSectionChange) }
-    item { HomeNavRow(WorkSection.Operations, data.pipelines.size, onSectionChange) }
+   // item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
 }
 
 private fun List<GitLabProject>.filteredProjects(query: String): List<GitLabProject> =
@@ -768,113 +748,6 @@ private fun List<GitLabEvent>.filteredEvents(query: String): List<GitLabEvent> =
             it.displayAction.contains(query, ignoreCase = true) ||
             it.author?.username.orEmpty().contains(query, ignoreCase = true)
     }
-
-private fun List<GitLabMilestone>.filteredMilestones(query: String): List<GitLabMilestone> =
-    if (query.isBlank()) this else filter {
-        it.title.contains(query, ignoreCase = true) ||
-            it.description.orEmpty().contains(query, ignoreCase = true) ||
-            it.state.contains(query, ignoreCase = true)
-    }
-
-private fun List<GitLabSnippet>.filteredSnippets(query: String): List<GitLabSnippet> =
-    if (query.isBlank()) this else filter {
-        it.title.contains(query, ignoreCase = true) ||
-            it.fileName.orEmpty().contains(query, ignoreCase = true) ||
-            it.description.orEmpty().contains(query, ignoreCase = true)
-    }
-
-private fun List<GitLabPipeline>.filteredPipelines(query: String): List<GitLabPipeline> =
-    if (query.isBlank()) this else filter {
-        it.ref.contains(query, ignoreCase = true) ||
-            it.status.contains(query, ignoreCase = true) ||
-            it.projectName.orEmpty().contains(query, ignoreCase = true)
-    }
-
-private fun androidx.compose.foundation.lazy.LazyListScope.milestoneItems(milestones: List<GitLabMilestone>) {
-    if (milestones.isEmpty()) {
-        item { EmptyBlock("No milestones found.") }
-    } else {
-        items(milestones, key = { it.id }) { milestone ->
-            ListCard(
-                icon = Icons.Outlined.Flag,
-                title = milestone.title,
-                meta = "State: ${milestone.state}${milestone.dueDate?.let { " · Due: $it" } ?: ""}"
-            ) {
-                milestone.description?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-    }
-}
-
-private fun androidx.compose.foundation.lazy.LazyListScope.snippetItems(snippets: List<GitLabSnippet>) {
-    if (snippets.isEmpty()) {
-        item { EmptyBlock("No code snippets found.") }
-    } else {
-        items(snippets, key = { it.id }) { snippet ->
-            ListCard(
-                icon = Icons.Outlined.Code,
-                user = snippet.author,
-                title = snippet.title,
-                meta = "${snippet.fileName ?: "Snippet"} · ${snippet.visibility}"
-            ) {
-                snippet.description?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-    }
-}
-
-private fun androidx.compose.foundation.lazy.LazyListScope.activityItems(events: List<GitLabEvent>) {
-    if (events.isEmpty()) {
-        item { EmptyBlock("No recent activity events.") }
-    } else {
-        items(events, key = { it.id }) { event ->
-            ListCard(
-                icon = Icons.Outlined.History,
-                user = event.author,
-                title = "${event.author?.name ?: "User"} ${event.displayAction}",
-                meta = "${event.targetType ?: "Event"}${event.targetTitle?.let { " · $it" } ?: ""}"
-            )
-        }
-    }
-}
-
-private fun androidx.compose.foundation.lazy.LazyListScope.operationItems(pipelines: List<GitLabPipeline>) {
-    if (pipelines.isEmpty()) {
-        item { EmptyBlock("No CI/CD pipelines found.") }
-    } else {
-        items(pipelines, key = { "${it.projectId}_${it.id}" }) { pipeline ->
-            val statusColor = when (pipeline.status.lowercase()) {
-                "success" -> Color(0xFF2E7D32)
-                "failed" -> Color(0xFFC62828)
-                "running" -> Color(0xFF1565C0)
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            }
-            ListCard(
-                icon = Icons.Outlined.Build,
-                title = "Pipeline #${pipeline.id} · ${pipeline.status.uppercase()}",
-                meta = "${pipeline.projectName ?: "Project"} on branch ${pipeline.ref}"
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(pipeline.status.uppercase(), fontWeight = FontWeight.Bold, color = statusColor) }
-                    )
-                    pipeline.sha.takeIf { it.isNotBlank() }?.let { sha ->
-                        AssistChip(
-                            onClick = {},
-                            leadingIcon = { Icon(Icons.Outlined.Tag, null, Modifier.size(14.dp)) },
-                            label = { Text(sha.take(8)) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun SettingsScreen(
