@@ -252,6 +252,12 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setHomeUiStyle(value: String) {
+        viewModelScope.launch {
+            sessionStore.saveHomeUiStyle(value)
+        }
+    }
+
     fun setPushNotifications(enabled: Boolean) {
         viewModelScope.launch {
             sessionStore.savePushNotifications(enabled)
@@ -285,6 +291,14 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
 
     fun setShowActivities(enabled: Boolean) {
         viewModelScope.launch { sessionStore.saveShowActivities(enabled) }
+    }
+
+    fun setDeveloperMode(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveDeveloperMode(enabled) }
+    }
+
+    fun setForceMaterialColor(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveForceMaterialColor(enabled) }
     }
 
     fun saveSession(host: String, token: String) {

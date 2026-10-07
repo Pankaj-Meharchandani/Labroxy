@@ -41,6 +41,7 @@ data class GitLabSession(
 
 data class AppSettings(
     val themeMode: String = "system",
+    val homeUiStyle: String = "minimal",
     val pushNotifications: Boolean = false,
     val showProjectsTab: Boolean = true,
     val showGroupsTab: Boolean = true,
@@ -48,7 +49,9 @@ data class AppSettings(
     val showMergeRequestsTab: Boolean = true,
     val showTodosTab: Boolean = true,
     val showNotificationsTab: Boolean = true,
-    val showActivities: Boolean = true
+    val showActivities: Boolean = true,
+    val developerMode: Boolean = false,
+    val forceMaterialColor: Boolean = false
 )
 
 data class CachedDashboard(
@@ -67,6 +70,7 @@ class SessionStore(private val context: Context) {
     private val hostKey = stringPreferencesKey("host")
     private val tokenKey = stringPreferencesKey("token")
     private val themeModeKey = stringPreferencesKey("theme_mode")
+    private val homeUiStyleKey = stringPreferencesKey("home_ui_style")
     private val pushNotificationsKey = booleanPreferencesKey("push_notifications")
     private val showProjectsTabKey = booleanPreferencesKey("show_projects_tab")
     private val showGroupsTabKey = booleanPreferencesKey("show_groups_tab")
@@ -75,6 +79,8 @@ class SessionStore(private val context: Context) {
     private val showTodosTabKey = booleanPreferencesKey("show_todos_tab")
     private val showNotificationsTabKey = booleanPreferencesKey("show_notifications_tab")
     private val showActivitiesKey = booleanPreferencesKey("show_activities")
+    private val developerModeKey = booleanPreferencesKey("developer_mode")
+    private val forceMaterialColorKey = booleanPreferencesKey("force_material_color")
     private val projectsCacheKey = stringPreferencesKey("cache_projects")
     private val groupsCacheKey = stringPreferencesKey("cache_groups")
     private val assignedWorkItemsCacheKey = stringPreferencesKey("cache_assigned_work_items")
@@ -101,6 +107,7 @@ class SessionStore(private val context: Context) {
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
             themeMode = prefs[themeModeKey] ?: "system",
+            homeUiStyle = prefs[homeUiStyleKey] ?: "minimal",
             pushNotifications = prefs[pushNotificationsKey] ?: false,
             showProjectsTab = prefs[showProjectsTabKey] ?: true,
             showGroupsTab = prefs[showGroupsTabKey] ?: true,
@@ -108,7 +115,9 @@ class SessionStore(private val context: Context) {
             showMergeRequestsTab = prefs[showMergeRequestsTabKey] ?: true,
             showTodosTab = prefs[showTodosTabKey] ?: true,
             showNotificationsTab = prefs[showNotificationsTabKey] ?: true,
-            showActivities = prefs[showActivitiesKey] ?: true
+            showActivities = prefs[showActivitiesKey] ?: true,
+            developerMode = prefs[developerModeKey] ?: false,
+            forceMaterialColor = prefs[forceMaterialColorKey] ?: false
         )
     }
 
@@ -150,6 +159,20 @@ class SessionStore(private val context: Context) {
     suspend fun saveThemeMode(themeMode: String) {
         context.dataStore.edit { prefs ->
             prefs[themeModeKey] = themeMode
+        }
+    }
+
+    suspend fun saveDeveloperMode(enabled: Boolean) {
+        context.dataStore.edit { it[developerModeKey] = enabled }
+    }
+
+    suspend fun saveForceMaterialColor(enabled: Boolean) {
+        context.dataStore.edit { it[forceMaterialColorKey] = enabled }
+    }
+
+    suspend fun saveHomeUiStyle(homeUiStyle: String) {
+        context.dataStore.edit { prefs ->
+            prefs[homeUiStyleKey] = homeUiStyle
         }
     }
 

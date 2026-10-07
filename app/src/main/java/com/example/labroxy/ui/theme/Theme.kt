@@ -16,12 +16,16 @@
  */
 package com.example.labroxy.ui.theme
 
+import android.os.Build
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 
 private val LabroxyLightColors = lightColorScheme(
     primary = Color(0xFFFC6D26),
@@ -60,14 +64,26 @@ private val LabroxyDarkColors = darkColorScheme(
 )
 
 @Composable
-fun LabroxyTheme(themeMode: String = "system", content: @Composable () -> Unit) {
+fun LabroxyTheme(
+    themeMode: String = "system",
+    forceMaterialColor: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    val context = LocalContext.current
     val dark = when (themeMode) {
         "dark" -> true
         "light" -> false
         else -> isSystemInDarkTheme()
     }
+    val colorScheme = when {
+        forceMaterialColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        dark -> LabroxyDarkColors
+        else -> LabroxyLightColors
+    }
     MaterialTheme(
-        colorScheme = if (dark) LabroxyDarkColors else LabroxyLightColors,
+        colorScheme = colorScheme,
         typography = MaterialTheme.typography,
         content = content
     )

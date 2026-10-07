@@ -69,6 +69,53 @@ Labroxy is built using modern Android architecture components and best-practice 
 
 ---
 
+## 📁 Architecture & UI Structure
+
+Labroxy's UI layer follows a clean, modular structure where composables and utilities are split by domain and responsibility:
+
+```
+com.example.labroxy.ui/
+├── LabroxyApp.kt                  # Root host composable (~150 lines)
+│
+├── navigation/
+│   ├── Screen.kt                  # Navigation enums (Screen, WorkSection)
+│   └── WorkDrawer.kt              # Drawer navigation & badge components
+│
+├── util/
+│   ├── DateTimeUtils.kt           # Relative time & ISO date formatting
+│   ├── FilterUtils.kt             # Search extensions for domain models
+│   ├── ColorUtils.kt              # GitLab hex color parsing & text contrast
+│   └── CommentParser.kt           # Markdown/HTML attachment & reference parser
+│
+├── components/
+│   ├── Avatars.kt                 # UserAvatar & ProjectAvatar
+│   ├── StatusBlocks.kt            # LoadingBlock, ErrorBlock, EmptyBlock
+│   ├── ChipsAndBadges.kt          # MetricChip, GitLabLabelChip, File & Image preview chips
+│   ├── WorkItemCards.kt           # Reusable ProjectCard, IssueRow, MergeRequestRow, CommitRow, etc.
+│   ├── WorkItemLists.kt           # LazyListScope extension functions for item lists
+│   └── ClickableCommentText.kt    # Rich clickable text component with @mentions and URL handling
+│
+├── dashboard/
+│   ├── DashboardCardSpec.kt       # Dashboard metric spec builder
+│   ├── HomeStyles.kt              # Minimal, Functional, & Stylish home screen variations
+│   └── DashboardScreen.kt         # Top-level Dashboard screen with drawer layout
+│
+└── screens/
+    ├── SignInScreen.kt            # Host and Personal Access Token connection screen
+    ├── ProjectScreen.kt           # Project view (Issues, MRs, Commits, Boards)
+    ├── GroupScreen.kt             # Group view (Projects, Subgroups, Issues)
+    ├── UserScreen.kt              # User profile view
+    ├── SettingsScreen.kt          # App appearance, tabs, notifications, & cache settings
+    ├── AboutScreen.kt             # App metadata & tech stack details
+    └── detail/
+        ├── WorkDetailScreen.kt    # Main issue/MR conversation screen
+        ├── DiscussionComponents.kt# Discussions, system notes, replies, & comment bar
+        ├── EmojiComponents.kt     # Emoji reaction row & bottom sheet picker
+        └── DetailSections.kt      # Assignee and relation sections
+```
+
+---
+
 ## 🏁 Getting Started
 
 ### 📥 Download & Install
