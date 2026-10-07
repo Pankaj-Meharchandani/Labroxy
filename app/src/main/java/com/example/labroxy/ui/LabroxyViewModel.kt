@@ -293,6 +293,14 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { sessionStore.saveShowActivities(enabled) }
     }
 
+    fun setDeveloperMode(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveDeveloperMode(enabled) }
+    }
+
+    fun setForceMaterialColor(enabled: Boolean) {
+        viewModelScope.launch { sessionStore.saveForceMaterialColor(enabled) }
+    }
+
     fun saveSession(host: String, token: String) {
         viewModelScope.launch {
             projectLabelCache.clear()

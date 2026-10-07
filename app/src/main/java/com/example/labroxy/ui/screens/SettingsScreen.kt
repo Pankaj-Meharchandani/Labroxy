@@ -94,7 +94,8 @@ fun SettingsScreen(
     onToggleTodosTab: (Boolean) -> Unit,
     onToggleNotificationsTab: (Boolean) -> Unit,
     onToggleActivities: (Boolean) -> Unit,
-    onAboutClick: () -> Unit
+    onAboutClick: () -> Unit,
+    onForceMaterialColorChange: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val appName = remember {
@@ -249,6 +250,17 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                }
+
+                if (settings.developerMode) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                    SettingToggleRow(
+                        title = "Force Material Color",
+                        subtitle = "Use dynamic wallpaper colors (Monet) instead of GitLab orange",
+                        checked = settings.forceMaterialColor,
+                        onCheckedChange = onForceMaterialColorChange
+                    )
                 }
             }
         }

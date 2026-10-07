@@ -68,7 +68,10 @@ import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(
+    onBack: () -> Unit,
+    onDeveloperUnlocked: () -> Unit = {}
+) {
     val context = LocalContext.current
     val appName = remember {
         runCatching {
@@ -134,6 +137,7 @@ fun AboutScreen(onBack: () -> Unit) {
                             clickCount++
                             if (clickCount >= 7) {
                                 showEasterEgg = true
+                                onDeveloperUnlocked()
                             }
                         },
                     contentAlignment = Alignment.Center

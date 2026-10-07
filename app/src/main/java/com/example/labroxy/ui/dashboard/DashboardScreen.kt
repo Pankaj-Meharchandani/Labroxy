@@ -99,7 +99,8 @@ fun DashboardScreen(
     onToggleNotificationsTab: (Boolean) -> Unit,
     onToggleActivities: (Boolean) -> Unit,
     onAboutClick: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onForceMaterialColorChange: (Boolean) -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -202,7 +203,8 @@ fun DashboardScreen(
                                     onToggleTodosTab = onToggleTodosTab,
                                     onToggleNotificationsTab = onToggleNotificationsTab,
                                     onToggleActivities = onToggleActivities,
-                                    onAboutClick = onAboutClick
+                                    onAboutClick = onAboutClick,
+                                    onForceMaterialColorChange = onForceMaterialColorChange
                                 )
                             }
                         }

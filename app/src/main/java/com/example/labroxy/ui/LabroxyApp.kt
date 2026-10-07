@@ -82,15 +82,18 @@ fun LabroxyApp(
         }
     }
 
-    BackHandler(enabled = screen in listOf(Screen.Project, Screen.Group, Screen.Detail, Screen.User) || section != WorkSection.Home) {
-        if (screen in listOf(Screen.Project, Screen.Group, Screen.Detail, Screen.User)) {
+    BackHandler(enabled = screen in listOf(Screen.Project, Screen.Group, Screen.Detail, Screen.User, Screen.About) || section != WorkSection.Home) {
+        if (screen in listOf(Screen.Project, Screen.Group, Screen.Detail, Screen.User, Screen.About)) {
             screen = Screen.Dashboard
         } else {
             section = WorkSection.Home
         }
     }
 
-    LabroxyTheme(settings.themeMode) {
+    LabroxyTheme(
+        themeMode = settings.themeMode,
+        forceMaterialColor = settings.forceMaterialColor
+    ) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             AnimatedContent(targetState = screen, label = "screen") { target ->
                 when (target) {
@@ -147,10 +150,12 @@ fun LabroxyApp(
                         onToggleNotificationsTab = viewModel::setShowNotificationsTab,
                         onToggleActivities = viewModel::setShowActivities,
                         onAboutClick = { screen = Screen.About },
-                        onSignOut = viewModel::signOut
+                        onSignOut = viewModel::signOut,
+                        onForceMaterialColorChange = viewModel::setForceMaterialColor
                     )
                     Screen.About -> AboutScreen(
-                        onBack = { screen = Screen.Dashboard }
+                        onBack = { screen = Screen.Dashboard },
+                        onDeveloperUnlocked = { viewModel.setDeveloperMode(true) }
                     )
                     Screen.Project -> ProjectScreen(
                         state = project,
