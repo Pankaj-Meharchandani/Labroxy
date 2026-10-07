@@ -21,6 +21,7 @@ package com.example.labroxy.ui.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,7 +43,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.outlined.MergeType
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.InsertDriveFile
@@ -100,49 +100,20 @@ fun WelcomeBlock(data: DashboardData) {
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "Hello, ${data.user.name.ifBlank { data.user.username }}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
                 Text(
-                    text = "@${data.user.username}",
+                    text = data.user.name.ifBlank { data.user.username },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "@${data.user.username} · GitLab Workspace",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
                 )
-            }
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF4CAF50).copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, Color(0xFF4CAF50).copy(alpha = 0.3f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF4CAF50))
-                    )
-                    Text(
-                        text = "Online",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF2E7D32),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
             }
         }
     }
@@ -188,7 +159,19 @@ fun LazyListScope.homeItemsMinimal(
     onSectionChange: (WorkSection) -> Unit,
     onEventClick: (GitLabEvent) -> Unit
 ) {
-    item { WelcomeBlock(data) }
+    item {
+        Column(
+            modifier = Modifier.padding(vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = "Hello, ${data.user.name.ifBlank { data.user.username }}",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+    }
 
     item {
         Text(
@@ -234,50 +217,10 @@ fun LazyListScope.homeItemsFunctional(
     onIssueClick: (GitLabIssue) -> Unit,
     onTodoClick: (GitLabTodo) -> Unit
 ) {
-    // Top Cockpit Profile & Quick Stats Card
     item {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    UserAvatar(user = data.user, size = 64)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text(
-                            text = data.user.name.ifBlank { data.user.username },
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "@${data.user.username} · GitLab Dashboard",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
+        WelcomeBlock(data)
     }
 
-    // Grid of Dashboard summary cards
     item {
         val cards = buildDashboardCardSpecs(data, settings)
         if (cards.isNotEmpty()) {
@@ -317,7 +260,6 @@ fun LazyListScope.homeItemsFunctional(
         }
     }
 
-    // "Items needing attention" Feed
     if (settings.showTodosTab) {
         item {
             Card(
@@ -586,66 +528,13 @@ fun LazyListScope.homeItemsStylish(
 ) {
     val cards = buildDashboardCardSpecs(data, settings)
 
-    // Expressive Glassmorphism Hero Canvas
+    // Handcrafted Workspace Header
     item {
-        val colorScheme = MaterialTheme.colorScheme
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.3f)),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                colorScheme.primary.copy(alpha = 0.9f),
-                                colorScheme.tertiary.copy(alpha = 0.8f),
-                                colorScheme.secondary.copy(alpha = 0.92f)
-                            )
-                        )
-                    )
-                    .padding(22.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        UserAvatar(user = data.user, size = 64)
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = "Hello, ${data.user.name.ifBlank { data.user.username }} 👋",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "@${data.user.username} · GitLab Cockpit",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.85f)
-                            )
-                        }
-                    }
-
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        cards.take(3).forEach { card ->
-                            StylishHeroPill(
-                                icon = card.icon,
-                                label = "${card.count} ${card.title}",
-                                onClick = { onSectionChange(card.section) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        StylishWorkspaceHeader(
+            data = data,
+            cards = cards,
+            onSectionChange = onSectionChange
+        )
     }
 
     // Expressive Horizontal Quick Carousel
@@ -741,25 +630,121 @@ fun LazyListScope.homeItemsStylish(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun StylishHeroPill(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit
+fun StylishWorkspaceHeader(
+    data: DashboardData,
+    cards: List<DashboardCardSpec>,
+    onSectionChange: (WorkSection) -> Unit
 ) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        color = Color.White.copy(alpha = 0.22f),
-        contentColor = Color.White
+    val colorScheme = MaterialTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = 1.5.dp,
+            brush = Brush.horizontalGradient(
+                colors = listOf(
+                    colorScheme.primary.copy(alpha = 0.75f),
+                    colorScheme.tertiary.copy(alpha = 0.6f),
+                    colorScheme.secondary.copy(alpha = 0.75f)
+                )
+            )
+        )
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            colorScheme.primaryContainer.copy(alpha = 0.35f),
+                            colorScheme.surface
+                        )
+                    )
+                )
+                .padding(20.dp)
         ) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
-            Text(text = label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .border(2.dp, colorScheme.primary, CircleShape)
+                    ) {
+                        UserAvatar(user = data.user, size = 58)
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = data.user.name.ifBlank { data.user.username },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "@${data.user.username} · GitLab Cockpit",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                if (cards.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        cards.take(3).forEach { card ->
+                            val accentColor = card.gradient.firstOrNull() ?: colorScheme.primary
+                            Surface(
+                                onClick = { onSectionChange(card.section) },
+                                shape = RoundedCornerShape(20.dp),
+                                color = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = card.icon,
+                                        contentDescription = null,
+                                        tint = accentColor,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "${card.count}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = card.title,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
