@@ -836,6 +836,131 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsMinimal(
     }
 }
 
+private fun formatRelativeTime(value: String?): String {
+    if (value.isNullOrBlank()) return "Just now"
+    val millis = parseIsoTimeToEpochMillis(value) ?: return compactGitLabDate(value).ifBlank { "Just now" }
+    val diff = System.currentTimeMillis() - millis
+    if (diff < 0) return "Just now"
+
+    val seconds = diff / 1000
+    val minutes = seconds / 60
+    val hours = minutes / 60
+    val days = hours / 24
+
+    return when {
+        minutes < 1 -> "Just now"
+        minutes < 60 -> "${minutes}m ago"
+        hours < 24 -> "${hours}hrs ago"
+        days < 30 -> "${days}d ago"
+        else -> "${days / 30}mo ago"
+    }
+}
+
+private fun parseIsoTimeToEpochMillis(value: String): Long? {
+    return runCatching {
+        java.time.Instant.parse(value).toEpochMilli()
+    }.getOrNull() ?: runCatching {
+        val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+        format.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        format.parse(value.substringBefore("."))?.time
+    }.getOrNull()
+}
+
+private data class DashboardCardSpec(
+    val id: String,
+    val title: String,
+    val count: Int,
+    val subtitle: String,
+    val timestamp: String,
+    val icon: ImageVector,
+    val section: WorkSection,
+    val isEnabled: Boolean,
+    val gradient: List<Color>
+)
+
+private fun buildDashboardCardSpecs(data: DashboardData, settings: AppSettings): List<DashboardCardSpec> {
+    val mrTime = formatRelativeTime(data.assignedMergeRequests.mapNotNull { it.updatedAt ?: it.createdAt }.maxOrNull())
+    val todoTime = formatRelativeTime(data.todos.mapNotNull { it.createdAt }.maxOrNull())
+    val issueTime = formatRelativeTime(data.assignedWorkItems.mapNotNull { it.updatedAt ?: it.createdAt }.maxOrNull())
+    val projectTime = formatRelativeTime(data.projects.mapNotNull { it.lastActivityAt }.maxOrNull())
+    val groupTime = formatRelativeTime(data.events.mapNotNull { it.createdAt }.maxOrNull())
+    val notificationTime = formatRelativeTime(data.events.mapNotNull { it.createdAt }.maxOrNull())
+
+    val allSpecs = listOf(
+        DashboardCardSpec(
+            id = "mrs",
+            title = "Merge requests",
+            count = data.assignedMergeRequests.size,
+            subtitle = "Assigned to you",
+            timestamp = mrTime,
+            icon = Icons.AutoMirrored.Outlined.MergeType,
+            section = WorkSection.MergeRequests,
+            isEnabled = settings.showMergeRequestsTab,
+            gradient = listOf(Color(0xFFFF5722), Color(0xFFF4511E))
+        ),
+        DashboardCardSpec(
+            id = "todos",
+            title = "To-Do List",
+            count = data.todos.size,
+            subtitle = "Need your attention",
+            timestamp = todoTime,
+            icon = Icons.Outlined.TaskAlt,
+            section = WorkSection.Todos,
+            isEnabled = settings.showTodosTab,
+            gradient = listOf(Color(0xFF9C27B0), Color(0xFF8E24AA))
+        ),
+        DashboardCardSpec(
+            id = "assigned",
+            title = "Work items",
+            count = data.assignedWorkItems.size,
+            subtitle = "Assigned to you",
+            timestamp = issueTime,
+            icon = Icons.AutoMirrored.Outlined.Assignment,
+            section = WorkSection.Assigned,
+            isEnabled = settings.showAssignedTab,
+            gradient = listOf(Color(0xFF009688), Color(0xFF00897B))
+        ),
+        DashboardCardSpec(
+            id = "projects",
+            title = "Projects",
+            count = data.projects.size,
+            subtitle = "Accessible",
+            timestamp = projectTime,
+            icon = Icons.Outlined.Folder,
+            section = WorkSection.Projects,
+            isEnabled = settings.showProjectsTab,
+            gradient = listOf(Color(0xFF2196F3), Color(0xFF1E88E5))
+        ),
+        DashboardCardSpec(
+            id = "groups",
+            title = "Groups",
+            count = data.groups.size,
+            subtitle = "Member groups",
+            timestamp = groupTime,
+            icon = Icons.Outlined.AccountTree,
+            section = WorkSection.Groups,
+            isEnabled = settings.showGroupsTab,
+            gradient = listOf(Color(0xFF3F51B5), Color(0xFF3949AB))
+        ),
+        DashboardCardSpec(
+            id = "notifications",
+            title = "Notifications",
+            count = data.events.size,
+            subtitle = "Recent activity",
+            timestamp = notificationTime,
+            icon = Icons.Outlined.History,
+            section = WorkSection.Notifications,
+            isEnabled = settings.showNotificationsTab,
+            gradient = listOf(Color(0xFFE91E63), Color(0xFFD81B60))
+        )
+    )
+
+    val enabled = allSpecs.filter { it.isEnabled }
+    val disabled = allSpecs.filterNot { it.isEnabled }
+
+    return if (enabled.size >= 4) enabled else (enabled + disabled).take(4)
+}
+
 private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsFunctional(
     data: DashboardData,
     settings: AppSettings,
@@ -878,60 +1003,57 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsFunctional(
         }
     }
 
-    // 2x2 Grid of Dashboard summary cards
+    // 2x2 Grid of Dashboard summary cards (replacing hidden items with available ones!)
     item {
+        val cards = buildDashboardCardSpecs(data, settings).take(4)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (settings.showMergeRequestsTab) {
+            if (cards.size >= 2) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     FunctionalDashboardCard(
-                        title = "Merge requests",
-                        count = data.assignedMergeRequests.size,
-                        subtitle = "Assigned to you",
-                        timestamp = "Just now",
-                        icon = Icons.AutoMirrored.Outlined.MergeType,
-                        onClick = { onSectionChange(WorkSection.MergeRequests) },
+                        title = cards[0].title,
+                        count = cards[0].count,
+                        subtitle = cards[0].subtitle,
+                        timestamp = cards[0].timestamp,
+                        icon = cards[0].icon,
+                        onClick = { onSectionChange(cards[0].section) },
                         modifier = Modifier.weight(1f)
                     )
-                }
-                if (settings.showTodosTab) {
                     FunctionalDashboardCard(
-                        title = "To-Do List",
-                        count = data.todos.size,
-                        subtitle = "Need your attention",
-                        timestamp = "Just now",
-                        icon = Icons.Outlined.TaskAlt,
-                        onClick = { onSectionChange(WorkSection.Todos) },
+                        title = cards[1].title,
+                        count = cards[1].count,
+                        subtitle = cards[1].subtitle,
+                        timestamp = cards[1].timestamp,
+                        icon = cards[1].icon,
+                        onClick = { onSectionChange(cards[1].section) },
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (settings.showAssignedTab) {
+            if (cards.size >= 4) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     FunctionalDashboardCard(
-                        title = "Work items",
-                        count = data.assignedWorkItems.size,
-                        subtitle = "Assigned to you",
-                        timestamp = "Just now",
-                        icon = Icons.AutoMirrored.Outlined.Assignment,
-                        onClick = { onSectionChange(WorkSection.Assigned) },
+                        title = cards[2].title,
+                        count = cards[2].count,
+                        subtitle = cards[2].subtitle,
+                        timestamp = cards[2].timestamp,
+                        icon = cards[2].icon,
+                        onClick = { onSectionChange(cards[2].section) },
                         modifier = Modifier.weight(1f)
                     )
-                }
-                if (settings.showProjectsTab) {
                     FunctionalDashboardCard(
-                        title = "Projects",
-                        count = data.projects.size,
-                        subtitle = "Accessible",
-                        timestamp = "Just now",
-                        icon = Icons.Outlined.Folder,
-                        onClick = { onSectionChange(WorkSection.Projects) },
+                        title = cards[3].title,
+                        count = cards[3].count,
+                        subtitle = cards[3].subtitle,
+                        timestamp = cards[3].timestamp,
+                        icon = cards[3].icon,
+                        onClick = { onSectionChange(cards[3].section) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -985,7 +1107,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsFunctional(
                             id = todo.id,
                             title = todo.target?.title ?: todo.body ?: todo.targetType,
                             subtitle = "${todo.author?.name ?: todo.author?.username ?: "Someone"} ${todo.action} - ${todo.project?.name.orEmpty()}".trim().removeSuffix("-").trim(),
-                            timestamp = compactGitLabDate(todo.createdAt),
+                            timestamp = formatRelativeTime(todo.createdAt),
                             onClick = { onTodoClick(todo) }
                         )
                     }
@@ -995,7 +1117,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsFunctional(
                             id = issue.id,
                             title = "[#${issue.iid}] ${issue.title}",
                             subtitle = "${issue.author?.name ?: issue.author?.username ?: "Created"} mentioned or assigned you",
-                            timestamp = compactGitLabDate(issue.createdAt),
+                            timestamp = formatRelativeTime(issue.createdAt),
                             onClick = { onIssueClick(issue) }
                         )
                     }
@@ -1150,6 +1272,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsStylish(
     onIssueClick: (GitLabIssue) -> Unit,
     onTodoClick: (GitLabTodo) -> Unit
 ) {
+    val cards = buildDashboardCardSpecs(data, settings)
+
     // Stylish Gradient Hero Banner
     item {
         val colorScheme = MaterialTheme.colorScheme
@@ -1200,21 +1324,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsStylish(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        StylishHeroPill(
-                            icon = Icons.Outlined.Folder,
-                            label = "${data.projects.size} Projects",
-                            onClick = { onSectionChange(WorkSection.Projects) }
-                        )
-                        StylishHeroPill(
-                            icon = Icons.Outlined.TaskAlt,
-                            label = "${data.todos.size} To-Dos",
-                            onClick = { onSectionChange(WorkSection.Todos) }
-                        )
-                        StylishHeroPill(
-                            icon = Icons.AutoMirrored.Outlined.MergeType,
-                            label = "${data.assignedMergeRequests.size} MRs",
-                            onClick = { onSectionChange(WorkSection.MergeRequests) }
-                        )
+                        cards.take(3).forEach { card ->
+                            StylishHeroPill(
+                                icon = card.icon,
+                                label = "${card.count} ${card.title}",
+                                onClick = { onSectionChange(card.section) }
+                            )
+                        }
                     }
                 }
             }
@@ -1236,65 +1352,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsStylish(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(horizontal = 2.dp)
             ) {
-                if (settings.showProjectsTab) {
-                    item {
-                        StylishMetricCard(
-                            title = "Projects",
-                            count = data.projects.size,
-                            subtitle = "Accessible repos",
-                            icon = Icons.Outlined.Folder,
-                            gradient = listOf(Color(0xFF2196F3), Color(0xFF1E88E5)),
-                            onClick = { onSectionChange(WorkSection.Projects) }
-                        )
-                    }
-                }
-                if (settings.showMergeRequestsTab) {
-                    item {
-                        StylishMetricCard(
-                            title = "Merge Requests",
-                            count = data.assignedMergeRequests.size,
-                            subtitle = "Assigned reviews",
-                            icon = Icons.AutoMirrored.Outlined.MergeType,
-                            gradient = listOf(Color(0xFFFF5722), Color(0xFFF4511E)),
-                            onClick = { onSectionChange(WorkSection.MergeRequests) }
-                        )
-                    }
-                }
-                if (settings.showTodosTab) {
-                    item {
-                        StylishMetricCard(
-                            title = "To-Do List",
-                            count = data.todos.size,
-                            subtitle = "Pending actions",
-                            icon = Icons.Outlined.TaskAlt,
-                            gradient = listOf(Color(0xFF9C27B0), Color(0xFF8E24AA)),
-                            onClick = { onSectionChange(WorkSection.Todos) }
-                        )
-                    }
-                }
-                if (settings.showAssignedTab) {
-                    item {
-                        StylishMetricCard(
-                            title = "Assigned Work",
-                            count = data.assignedWorkItems.size,
-                            subtitle = "Open work items",
-                            icon = Icons.AutoMirrored.Outlined.Assignment,
-                            gradient = listOf(Color(0xFF009688), Color(0xFF00897B)),
-                            onClick = { onSectionChange(WorkSection.Assigned) }
-                        )
-                    }
-                }
-                if (settings.showGroupsTab) {
-                    item {
-                        StylishMetricCard(
-                            title = "Groups",
-                            count = data.groups.size,
-                            subtitle = "Member groups",
-                            icon = Icons.Outlined.AccountTree,
-                            gradient = listOf(Color(0xFF3F51B5), Color(0xFF3949AB)),
-                            onClick = { onSectionChange(WorkSection.Groups) }
-                        )
-                    }
+                items(cards, key = { it.id }) { card ->
+                    StylishMetricCard(
+                        title = card.title,
+                        count = card.count,
+                        subtitle = card.subtitle,
+                        icon = card.icon,
+                        gradient = card.gradient,
+                        onClick = { onSectionChange(card.section) }
+                    )
                 }
             }
         }
