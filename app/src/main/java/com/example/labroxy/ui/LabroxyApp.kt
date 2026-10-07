@@ -701,19 +701,6 @@ private fun WorkDrawer(
             )
             WorkSection.entries
                 .filterNot { it == WorkSection.Notifications }
-                /*
-                .filter { section ->
-                    when (section) {
-                        WorkSection.Home, WorkSection.Settings -> true
-                        WorkSection.Projects -> settings.showProjectsTab
-                        WorkSection.Groups -> settings.showGroupsTab
-                        WorkSection.Assigned -> settings.showAssignedTab
-                        WorkSection.MergeRequests -> settings.showMergeRequestsTab
-                        WorkSection.Todos -> settings.showTodosTab
-                        WorkSection.Notifications -> settings.showNotificationsTab
-                    }
-                }
-                */
                 .forEach { section ->
                     NavigationDrawerItem(
                         selected = selected == section,
@@ -784,6 +771,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
             data = data,
             settings = settings,
             onSectionChange = onSectionChange,
+            onEventClick = onEventClick,
             onIssueClick = onIssueClick,
             onTodoClick = onTodoClick
         )
@@ -884,7 +872,6 @@ private fun buildDashboardCardSpecs(data: DashboardData, settings: AppSettings):
     val issueTime = formatRelativeTime(data.assignedWorkItems.mapNotNull { it.updatedAt ?: it.createdAt }.maxOrNull())
     val projectTime = formatRelativeTime(data.projects.mapNotNull { it.lastActivityAt }.maxOrNull())
     val groupTime = formatRelativeTime(data.events.mapNotNull { it.createdAt }.maxOrNull())
-    val notificationTime = formatRelativeTime(data.events.mapNotNull { it.createdAt }.maxOrNull())
 
     val allSpecs = listOf(
         DashboardCardSpec(
@@ -941,30 +928,17 @@ private fun buildDashboardCardSpecs(data: DashboardData, settings: AppSettings):
             section = WorkSection.Groups,
             isEnabled = settings.showGroupsTab,
             gradient = listOf(Color(0xFF3F51B5), Color(0xFF3949AB))
-        ),
-        DashboardCardSpec(
-            id = "notifications",
-            title = "Notifications",
-            count = data.events.size,
-            subtitle = "Recent activity",
-            timestamp = notificationTime,
-            icon = Icons.Outlined.History,
-            section = WorkSection.Notifications,
-            isEnabled = settings.showNotificationsTab,
-            gradient = listOf(Color(0xFFE91E63), Color(0xFFD81B60))
         )
     )
 
-    val enabled = allSpecs.filter { it.isEnabled }
-    val disabled = allSpecs.filterNot { it.isEnabled }
-
-    return if (enabled.size >= 4) enabled else (enabled + disabled).take(4)
+    return allSpecs.filter { it.isEnabled }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsFunctional(
     data: DashboardData,
     settings: AppSettings,
     onSectionChange: (WorkSection) -> Unit,
+    onEventClick: (GitLabEvent) -> Unit,
     onIssueClick: (GitLabIssue) -> Unit,
     onTodoClick: (GitLabTodo) -> Unit
 ) {
@@ -1003,177 +977,149 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsFunctional(
         }
     }
 
-    // 2x2 Grid of Dashboard summary cards (replacing hidden items with available ones!)
+    // Grid of Dashboard summary cards (rendering ONLY selected/enabled items!)
     item {
-        val cards = buildDashboardCardSpecs(data, settings).take(4)
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (cards.size >= 2) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    FunctionalDashboardCard(
-                        title = cards[0].title,
-                        count = cards[0].count,
-                        subtitle = cards[0].subtitle,
-                        timestamp = cards[0].timestamp,
-                        icon = cards[0].icon,
-                        onClick = { onSectionChange(cards[0].section) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FunctionalDashboardCard(
-                        title = cards[1].title,
-                        count = cards[1].count,
-                        subtitle = cards[1].subtitle,
-                        timestamp = cards[1].timestamp,
-                        icon = cards[1].icon,
-                        onClick = { onSectionChange(cards[1].section) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            if (cards.size >= 4) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    FunctionalDashboardCard(
-                        title = cards[2].title,
-                        count = cards[2].count,
-                        subtitle = cards[2].subtitle,
-                        timestamp = cards[2].timestamp,
-                        icon = cards[2].icon,
-                        onClick = { onSectionChange(cards[2].section) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FunctionalDashboardCard(
-                        title = cards[3].title,
-                        count = cards[3].count,
-                        subtitle = cards[3].subtitle,
-                        timestamp = cards[3].timestamp,
-                        icon = cards[3].icon,
-                        onClick = { onSectionChange(cards[3].section) },
-                        modifier = Modifier.weight(1f)
-                    )
+        val cards = buildDashboardCardSpecs(data, settings)
+        if (cards.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                cards.chunked(2).forEach { pair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        FunctionalDashboardCard(
+                            title = pair[0].title,
+                            count = pair[0].count,
+                            subtitle = pair[0].subtitle,
+                            timestamp = pair[0].timestamp,
+                            icon = pair[0].icon,
+                            onClick = { onSectionChange(pair[0].section) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (pair.size > 1) {
+                            FunctionalDashboardCard(
+                                title = pair[1].title,
+                                count = pair[1].count,
+                                subtitle = pair[1].subtitle,
+                                timestamp = pair[1].timestamp,
+                                icon = pair[1].icon,
+                                onClick = { onSectionChange(pair[1].section) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
     }
 
-    // "Items that need your attention" Section
-    item {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+    // "Items that need your attention" Section (ONLY displayed if To-Do List is ON in Settings)
+    if (settings.showTodosTab) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        text = "Items that need your attention",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    TextButton(
-                        onClick = { onSectionChange(WorkSection.Todos) },
-                        contentPadding = PaddingValues(0.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Everything",
-                            style = MaterialTheme.typography.titleSmall,
+                            text = "Items that need your attention",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                        TextButton(
+                            onClick = { onSectionChange(WorkSection.Todos) },
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = "Everything",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
-                }
 
-                val attentionItems = remember(data.todos, data.assignedWorkItems) {
-                    val todoItems = data.todos.map { todo ->
-                        FunctionalAttentionItem(
-                            id = todo.id,
-                            title = todo.target?.title ?: todo.body ?: todo.targetType,
-                            subtitle = "${todo.author?.name ?: todo.author?.username ?: "Someone"} ${todo.action} - ${todo.project?.name.orEmpty()}".trim().removeSuffix("-").trim(),
-                            timestamp = formatRelativeTime(todo.createdAt),
-                            onClick = { onTodoClick(todo) }
-                        )
+                    val attentionItems = remember(data.todos) {
+                        data.todos.map { todo ->
+                            FunctionalAttentionItem(
+                                id = todo.id,
+                                title = todo.target?.title ?: todo.body ?: todo.targetType,
+                                subtitle = "${todo.author?.name ?: todo.author?.username ?: "Someone"} ${todo.action} - ${todo.project?.name.orEmpty()}".trim().removeSuffix("-").trim(),
+                                timestamp = formatRelativeTime(todo.createdAt),
+                                onClick = { onTodoClick(todo) }
+                            )
+                        }.take(5)
                     }
-                    if (todoItems.isNotEmpty()) todoItems.take(5)
-                    else data.assignedWorkItems.take(5).map { issue ->
-                        FunctionalAttentionItem(
-                            id = issue.id,
-                            title = "[#${issue.iid}] ${issue.title}",
-                            subtitle = "${issue.author?.name ?: issue.author?.username ?: "Created"} mentioned or assigned you",
-                            timestamp = formatRelativeTime(issue.createdAt),
-                            onClick = { onIssueClick(issue) }
-                        )
-                    }
-                }
 
-                if (attentionItems.isEmpty()) {
-                    Text(
-                        text = "No items requiring attention.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        attentionItems.forEach { item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(onClick = item.onClick)
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.InsertDriveFile,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp).padding(top = 2.dp)
-                                )
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                    if (attentionItems.isEmpty()) {
+                        Text(
+                            text = "No items requiring attention.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            attentionItems.forEach { item ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable(onClick = item.onClick)
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.Top,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Text(
-                                        text = item.title,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
+                                    Icon(
+                                        imageVector = Icons.Outlined.InsertDriveFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp).padding(top = 2.dp)
                                     )
-                                    if (item.subtitle.isNotBlank()) {
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
                                         Text(
-                                            text = item.subtitle,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
+                                            text = item.title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 2,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                    }
-                                    if (item.timestamp.isNotBlank()) {
-                                        Text(
-                                            text = item.timestamp,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
+                                        if (item.subtitle.isNotBlank()) {
+                                            Text(
+                                                text = item.subtitle,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        if (item.timestamp.isNotBlank()) {
+                                            Text(
+                                                text = item.timestamp,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1181,6 +1127,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsFunctional(
                     }
                 }
             }
+        }
+    }
+
+    if (settings.showActivities) {
+        item {
+            RecentActivitiesSection(
+                data = data,
+                onEventClick = onEventClick
+            )
         }
     }
 }
@@ -1586,12 +1541,12 @@ private fun RecentActivitiesSection(
     onEventClick: (GitLabEvent) -> Unit
 ) {
     val recentActivities = remember(data.events, data.projectEvents, data.user) {
-        (data.events + data.projectEvents)
-            .distinctBy { it.id }
-            .filter { event ->
-                event.author?.id == data.user.id ||
-                (data.user.username.isNotBlank() && event.author?.username.equals(data.user.username, ignoreCase = true))
-            }
+        val allEvents = (data.events + data.projectEvents).distinctBy { it.id }
+        val userEvents = allEvents.filter { event ->
+            event.author?.id == data.user.id ||
+            (data.user.username.isNotBlank() && event.author?.username.equals(data.user.username, ignoreCase = true))
+        }
+        (if (userEvents.isNotEmpty()) userEvents else allEvents)
             .sortedByDescending { it.createdAt }
             .take(5)
     }
