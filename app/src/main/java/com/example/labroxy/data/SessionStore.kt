@@ -41,6 +41,7 @@ data class GitLabSession(
 
 data class AppSettings(
     val themeMode: String = "system",
+    val homeUiStyle: String = "minimal",
     val pushNotifications: Boolean = false,
     val showProjectsTab: Boolean = true,
     val showGroupsTab: Boolean = true,
@@ -67,6 +68,7 @@ class SessionStore(private val context: Context) {
     private val hostKey = stringPreferencesKey("host")
     private val tokenKey = stringPreferencesKey("token")
     private val themeModeKey = stringPreferencesKey("theme_mode")
+    private val homeUiStyleKey = stringPreferencesKey("home_ui_style")
     private val pushNotificationsKey = booleanPreferencesKey("push_notifications")
     private val showProjectsTabKey = booleanPreferencesKey("show_projects_tab")
     private val showGroupsTabKey = booleanPreferencesKey("show_groups_tab")
@@ -101,6 +103,7 @@ class SessionStore(private val context: Context) {
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
             themeMode = prefs[themeModeKey] ?: "system",
+            homeUiStyle = prefs[homeUiStyleKey] ?: "minimal",
             pushNotifications = prefs[pushNotificationsKey] ?: false,
             showProjectsTab = prefs[showProjectsTabKey] ?: true,
             showGroupsTab = prefs[showGroupsTabKey] ?: true,
@@ -150,6 +153,12 @@ class SessionStore(private val context: Context) {
     suspend fun saveThemeMode(themeMode: String) {
         context.dataStore.edit { prefs ->
             prefs[themeModeKey] = themeMode
+        }
+    }
+
+    suspend fun saveHomeUiStyle(homeUiStyle: String) {
+        context.dataStore.edit { prefs ->
+            prefs[homeUiStyleKey] = homeUiStyle
         }
     }
 

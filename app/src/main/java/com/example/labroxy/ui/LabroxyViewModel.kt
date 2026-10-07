@@ -252,6 +252,12 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setHomeUiStyle(value: String) {
+        viewModelScope.launch {
+            sessionStore.saveHomeUiStyle(value)
+        }
+    }
+
     fun setPushNotifications(enabled: Boolean) {
         viewModelScope.launch {
             sessionStore.savePushNotifications(enabled)

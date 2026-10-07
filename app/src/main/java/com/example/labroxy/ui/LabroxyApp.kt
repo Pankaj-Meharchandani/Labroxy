@@ -53,6 +53,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -292,6 +293,7 @@ fun LabroxyApp(
                     },
                     settings = settings,
                     onThemeModeChange = viewModel::setThemeMode,
+                    onHomeUiStyleChange = viewModel::setHomeUiStyle,
                     onPushNotificationsChange = viewModel::setPushNotifications,
                     onToggleProjectsTab = viewModel::setShowProjectsTab,
                     onToggleGroupsTab = viewModel::setShowGroupsTab,
@@ -549,6 +551,7 @@ private fun DashboardScreen(
     onEventClick: (GitLabEvent) -> Unit,
     settings: AppSettings,
     onThemeModeChange: (String) -> Unit,
+    onHomeUiStyleChange: (String) -> Unit,
     onPushNotificationsChange: (Boolean) -> Unit,
     onToggleProjectsTab: (Boolean) -> Unit,
     onToggleGroupsTab: (Boolean) -> Unit,
@@ -629,7 +632,9 @@ private fun DashboardScreen(
                                 data = data,
                                 settings = settings,
                                 onSectionChange = onSectionChange,
-                                onEventClick = onEventClick
+                                onEventClick = onEventClick,
+                                onIssueClick = onIssueClick,
+                                onTodoClick = onTodoClick
                             )
                             WorkSection.Projects -> projectItems(data.projects.filteredProjects(query), onProjectClick)
                             WorkSection.Groups -> groupItems(data.groups.filteredGroups(query), onGroupClick)
@@ -650,6 +655,7 @@ private fun DashboardScreen(
                                 SettingsScreen(
                                     settings = settings,
                                     onThemeModeChange = onThemeModeChange,
+                                    onHomeUiStyleChange = onHomeUiStyleChange,
                                     onPushNotificationsChange = onPushNotificationsChange,
                                     onToggleProjectsTab = onToggleProjectsTab,
                                     onToggleGroupsTab = onToggleGroupsTab,
@@ -769,6 +775,39 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
     data: DashboardData,
     settings: AppSettings,
     onSectionChange: (WorkSection) -> Unit,
+    onEventClick: (GitLabEvent) -> Unit,
+    onIssueClick: (GitLabIssue) -> Unit,
+    onTodoClick: (GitLabTodo) -> Unit
+) {
+    when (settings.homeUiStyle) {
+        "functional" -> homeItemsFunctional(
+            data = data,
+            settings = settings,
+            onSectionChange = onSectionChange,
+            onIssueClick = onIssueClick,
+            onTodoClick = onTodoClick
+        )
+        "stylish" -> homeItemsStylish(
+            data = data,
+            settings = settings,
+            onSectionChange = onSectionChange,
+            onEventClick = onEventClick,
+            onIssueClick = onIssueClick,
+            onTodoClick = onTodoClick
+        )
+        else -> homeItemsMinimal(
+            data = data,
+            settings = settings,
+            onSectionChange = onSectionChange,
+            onEventClick = onEventClick
+        )
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsMinimal(
+    data: DashboardData,
+    settings: AppSettings,
+    onSectionChange: (WorkSection) -> Unit,
     onEventClick: (GitLabEvent) -> Unit
 ) {
     item { WelcomeBlock(data) }
@@ -787,17 +826,690 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeItems(
     if (settings.showTodosTab) {
         item { HomeNavRow(WorkSection.Todos, data.todos.size, onSectionChange) }
     }
-    /*
-    if (settings.showNotificationsTab) {
-        item { HomeNavRow(WorkSection.Notifications, data.events.size, onSectionChange) }
-    }
-    */
     if (settings.showActivities) {
         item {
             RecentActivitiesSection(
                 data = data,
                 onEventClick = onEventClick
             )
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsFunctional(
+    data: DashboardData,
+    settings: AppSettings,
+    onSectionChange: (WorkSection) -> Unit,
+    onIssueClick: (GitLabIssue) -> Unit,
+    onTodoClick: (GitLabTodo) -> Unit
+) {
+    // Top Profile Header Card
+    item {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                UserAvatar(user = data.user, size = 68)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = data.user.name.ifBlank { data.user.username },
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Welcome!",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+
+    // 2x2 Grid of Dashboard summary cards
+    item {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (settings.showMergeRequestsTab) {
+                    FunctionalDashboardCard(
+                        title = "Merge requests",
+                        count = data.assignedMergeRequests.size,
+                        subtitle = "Assigned to you",
+                        timestamp = "Just now",
+                        icon = Icons.AutoMirrored.Outlined.MergeType,
+                        onClick = { onSectionChange(WorkSection.MergeRequests) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (settings.showTodosTab) {
+                    FunctionalDashboardCard(
+                        title = "To-Do List",
+                        count = data.todos.size,
+                        subtitle = "Need your attention",
+                        timestamp = "Just now",
+                        icon = Icons.Outlined.TaskAlt,
+                        onClick = { onSectionChange(WorkSection.Todos) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (settings.showAssignedTab) {
+                    FunctionalDashboardCard(
+                        title = "Work items",
+                        count = data.assignedWorkItems.size,
+                        subtitle = "Assigned to you",
+                        timestamp = "Just now",
+                        icon = Icons.AutoMirrored.Outlined.Assignment,
+                        onClick = { onSectionChange(WorkSection.Assigned) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (settings.showProjectsTab) {
+                    FunctionalDashboardCard(
+                        title = "Projects",
+                        count = data.projects.size,
+                        subtitle = "Accessible",
+                        timestamp = "Just now",
+                        icon = Icons.Outlined.Folder,
+                        onClick = { onSectionChange(WorkSection.Projects) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+
+    // "Items that need your attention" Section
+    item {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Items that need your attention",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    TextButton(
+                        onClick = { onSectionChange(WorkSection.Todos) },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = "Everything",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                val attentionItems = remember(data.todos, data.assignedWorkItems) {
+                    val todoItems = data.todos.map { todo ->
+                        FunctionalAttentionItem(
+                            id = todo.id,
+                            title = todo.target?.title ?: todo.body ?: todo.targetType,
+                            subtitle = "${todo.author?.name ?: todo.author?.username ?: "Someone"} ${todo.action} - ${todo.project?.name.orEmpty()}".trim().removeSuffix("-").trim(),
+                            timestamp = compactGitLabDate(todo.createdAt),
+                            onClick = { onTodoClick(todo) }
+                        )
+                    }
+                    if (todoItems.isNotEmpty()) todoItems.take(5)
+                    else data.assignedWorkItems.take(5).map { issue ->
+                        FunctionalAttentionItem(
+                            id = issue.id,
+                            title = "[#${issue.iid}] ${issue.title}",
+                            subtitle = "${issue.author?.name ?: issue.author?.username ?: "Created"} mentioned or assigned you",
+                            timestamp = compactGitLabDate(issue.createdAt),
+                            onClick = { onIssueClick(issue) }
+                        )
+                    }
+                }
+
+                if (attentionItems.isEmpty()) {
+                    Text(
+                        text = "No items requiring attention.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        attentionItems.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = item.onClick)
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.InsertDriveFile,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp).padding(top = 2.dp)
+                                )
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = item.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (item.subtitle.isNotBlank()) {
+                                        Text(
+                                            text = item.subtitle,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    if (item.timestamp.isNotBlank()) {
+                                        Text(
+                                            text = item.timestamp,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FunctionalDashboardCard(
+    title: String,
+    count: Int,
+    subtitle: String,
+    timestamp: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Text(
+                text = "$count",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = timestamp,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+private data class FunctionalAttentionItem(
+    val id: Long,
+    val title: String,
+    val subtitle: String,
+    val timestamp: String,
+    val onClick: () -> Unit
+)
+
+private fun androidx.compose.foundation.lazy.LazyListScope.homeItemsStylish(
+    data: DashboardData,
+    settings: AppSettings,
+    onSectionChange: (WorkSection) -> Unit,
+    onEventClick: (GitLabEvent) -> Unit,
+    onIssueClick: (GitLabIssue) -> Unit,
+    onTodoClick: (GitLabTodo) -> Unit
+) {
+    // Stylish Gradient Hero Banner
+    item {
+        val colorScheme = MaterialTheme.colorScheme
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.3f)),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                colorScheme.primary.copy(alpha = 0.85f),
+                                colorScheme.tertiary.copy(alpha = 0.75f),
+                                colorScheme.secondary.copy(alpha = 0.9f)
+                            )
+                        )
+                    )
+                    .padding(22.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        UserAvatar(user = data.user, size = 64)
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = "Hello, ${data.user.name.ifBlank { data.user.username }} 👋",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "@${data.user.username} · GitLab Cockpit",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White.copy(alpha = 0.82f)
+                            )
+                        }
+                    }
+
+                    // Stylish Stat Pills
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        StylishHeroPill(
+                            icon = Icons.Outlined.Folder,
+                            label = "${data.projects.size} Projects",
+                            onClick = { onSectionChange(WorkSection.Projects) }
+                        )
+                        StylishHeroPill(
+                            icon = Icons.Outlined.TaskAlt,
+                            label = "${data.todos.size} To-Dos",
+                            onClick = { onSectionChange(WorkSection.Todos) }
+                        )
+                        StylishHeroPill(
+                            icon = Icons.AutoMirrored.Outlined.MergeType,
+                            label = "${data.assignedMergeRequests.size} MRs",
+                            onClick = { onSectionChange(WorkSection.MergeRequests) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Expressive Horizontal Quick Carousel
+    item {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = "QUICK DASHBOARD",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.sp
+            )
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp)
+            ) {
+                if (settings.showProjectsTab) {
+                    item {
+                        StylishMetricCard(
+                            title = "Projects",
+                            count = data.projects.size,
+                            subtitle = "Accessible repos",
+                            icon = Icons.Outlined.Folder,
+                            gradient = listOf(Color(0xFF2196F3), Color(0xFF1E88E5)),
+                            onClick = { onSectionChange(WorkSection.Projects) }
+                        )
+                    }
+                }
+                if (settings.showMergeRequestsTab) {
+                    item {
+                        StylishMetricCard(
+                            title = "Merge Requests",
+                            count = data.assignedMergeRequests.size,
+                            subtitle = "Assigned reviews",
+                            icon = Icons.AutoMirrored.Outlined.MergeType,
+                            gradient = listOf(Color(0xFFFF5722), Color(0xFFF4511E)),
+                            onClick = { onSectionChange(WorkSection.MergeRequests) }
+                        )
+                    }
+                }
+                if (settings.showTodosTab) {
+                    item {
+                        StylishMetricCard(
+                            title = "To-Do List",
+                            count = data.todos.size,
+                            subtitle = "Pending actions",
+                            icon = Icons.Outlined.TaskAlt,
+                            gradient = listOf(Color(0xFF9C27B0), Color(0xFF8E24AA)),
+                            onClick = { onSectionChange(WorkSection.Todos) }
+                        )
+                    }
+                }
+                if (settings.showAssignedTab) {
+                    item {
+                        StylishMetricCard(
+                            title = "Assigned Work",
+                            count = data.assignedWorkItems.size,
+                            subtitle = "Open work items",
+                            icon = Icons.AutoMirrored.Outlined.Assignment,
+                            gradient = listOf(Color(0xFF009688), Color(0xFF00897B)),
+                            onClick = { onSectionChange(WorkSection.Assigned) }
+                        )
+                    }
+                }
+                if (settings.showGroupsTab) {
+                    item {
+                        StylishMetricCard(
+                            title = "Groups",
+                            count = data.groups.size,
+                            subtitle = "Member groups",
+                            icon = Icons.Outlined.AccountTree,
+                            gradient = listOf(Color(0xFF3F51B5), Color(0xFF3949AB)),
+                            onClick = { onSectionChange(WorkSection.Groups) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Modern Stylish Attention & Focus Feed
+    item {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "FOCUS WORKSPACE",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = 1.sp
+                )
+                TextButton(onClick = { onSectionChange(WorkSection.Todos) }) {
+                    Text("View All", fontWeight = FontWeight.Bold)
+                }
+            }
+
+            val topTodos = data.todos.take(4)
+            if (topTodos.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                ) {
+                    Box(Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
+                        Text("No pending tasks in your focus workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    topTodos.forEach { todo ->
+                        StylishTaskCard(
+                            todo = todo,
+                            onClick = { onTodoClick(todo) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (settings.showActivities) {
+        item {
+            RecentActivitiesSection(
+                data = data,
+                onEventClick = onEventClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun StylishHeroPill(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.22f),
+        contentColor = Color.White
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text(text = label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun StylishMetricCard(
+    title: String,
+    count: Int,
+    subtitle: String,
+    icon: ImageVector,
+    gradient: List<Color>,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(160.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.linearGradient(gradient))
+                .padding(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.25f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                }
+                Text(
+                    text = "$count",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.82f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StylishTaskCard(
+    todo: GitLabTodo,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (todo.author != null) {
+                UserAvatar(user = todo.author, size = 42)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.TaskAlt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = todo.target?.title ?: todo.body ?: todo.targetType,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(todo.action, style = MaterialTheme.typography.labelSmall) },
+                        modifier = Modifier.height(24.dp)
+                    )
+                    Text(
+                        text = todo.project?.name.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
@@ -927,6 +1639,7 @@ private fun List<GitLabEvent>.filteredEvents(query: String): List<GitLabEvent> =
 private fun SettingsScreen(
     settings: AppSettings,
     onThemeModeChange: (String) -> Unit,
+    onHomeUiStyleChange: (String) -> Unit,
     onPushNotificationsChange: (Boolean) -> Unit,
     onToggleProjectsTab: (Boolean) -> Unit,
     onToggleGroupsTab: (Boolean) -> Unit,
@@ -1043,7 +1756,7 @@ private fun SettingsScreen(
             }
         }
 
-        // --- APPEARANCE ---
+        // --- APPEARANCE & THEME ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -1051,8 +1764,8 @@ private fun SettingsScreen(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                SettingsSectionHeader(icon = Icons.Outlined.Palette, title = "Appearance")
-                
+                SettingsSectionHeader(icon = Icons.Outlined.Palette, title = "Appearance & Theme")
+
                 Text(
                     "Theme Mode",
                     fontWeight = FontWeight.Bold,
@@ -1072,6 +1785,32 @@ private fun SettingsScreen(
                             icon = icon,
                             selected = settings.themeMode == value,
                             onClick = { onThemeModeChange(value) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
+
+                Text(
+                    "Home Screen UI Style",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    val homeStyles = listOf(
+                        Triple("minimal", "Minimal", Icons.Outlined.Home),
+                        Triple("functional", "Functional", Icons.AutoMirrored.Outlined.Assignment),
+                        Triple("stylish", "Stylish", Icons.Outlined.Palette)
+                    )
+                    homeStyles.forEach { (value, label, icon) ->
+                        ThemeOptionCard(
+                            label = label,
+                            icon = icon,
+                            selected = settings.homeUiStyle == value,
+                            onClick = { onHomeUiStyleChange(value) },
                             modifier = Modifier.weight(1f)
                         )
                     }
