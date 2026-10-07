@@ -1,3 +1,18 @@
+/**
+ * File: UiState.kt
+ *
+ * What it does:
+ * Defines generic sealed interface LoadState<T> representing asynchronous UI state (Loading, Success, Error)
+ * along with utility extension functions for error message handling.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyViewModel: Wraps dashboard, project, group, detail, and user state flows in LoadState.
+ * - com.example.labroxy.ui.LabroxyApp: Evaluates LoadState to render progress indicators, error views, or content cards.
+ *
+ * Features / Functions:
+ * - Sealed interface LoadState<T> (Loading, Success, Error).
+ * - Exception to user-friendly message conversion (Throwable.toFriendlyMessage()).
+ */
 package com.example.labroxy.ui
 
 sealed interface LoadState<out T> {

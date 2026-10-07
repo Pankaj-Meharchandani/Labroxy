@@ -1,3 +1,21 @@
+/**
+ * File: SessionStore.kt
+ *
+ * What it does:
+ * Manages persistent local data storage using Jetpack Preferences DataStore. Stores user authentication
+ * credentials (host URL and personal access token), app settings/preferences, offline dashboard cache, and notified to-do IDs.
+ *
+ * Touchpoints:
+ * - Android Preferences DataStore ("labroxy_session").
+ * - com.example.labroxy.ui.LabroxyViewModel: Observed via Flows for active session, settings, and cached dashboard state.
+ * - com.example.labroxy.notifications.TodoNotificationWorker: Consulted for notification settings and tracking notified to-do IDs.
+ *
+ * Features / Functions:
+ * - Persisting and retrieving active session credentials (GitLabSession).
+ * - Saving and loading application preferences (theme mode, push notification toggle, home screen tab visibility settings).
+ * - Serializing and deserializing offline dashboard data (CachedDashboard) in JSON format for instant app launch.
+ * - Storing notified to-do IDs set to prevent duplicate push notifications.
+ */
 package com.example.labroxy.data
 
 import android.content.Context

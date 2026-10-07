@@ -1,3 +1,21 @@
+/**
+ * File: MainActivity.kt
+ *
+ * What it does:
+ * Root Activity and main entry point of the Labroxy Android application. Handles app launch, intent
+ * handling (deep links via ACTION_VIEW and shared text via ACTION_SEND), URL extraction from text content,
+ * and initializes the Jetpack Compose UI content tree via LabroxyApp.
+ *
+ * Touchpoints:
+ * - AndroidManifest.xml: Declared as the main launcher activity and handler for deep link intent filters.
+ * - com.example.labroxy.ui.LabroxyApp: Instantiates and hosts the top-level Compose app component.
+ * - Android System Intents: Receives VIEW and SEND intents for deep linking and text sharing.
+ *
+ * Features / Functions:
+ * - Application lifecycle initialization (onCreate, onNewIntent).
+ * - Direct deep-link URL parsing and routing into the app's detail views.
+ * - Processing shared text containing GitLab URLs ("Share to Labroxy").
+ */
 package com.example.labroxy
 
 import android.content.Intent

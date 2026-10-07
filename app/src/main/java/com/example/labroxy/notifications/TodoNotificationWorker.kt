@@ -1,3 +1,19 @@
+/**
+ * File: TodoNotificationWorker.kt
+ *
+ * What it does:
+ * WorkManager CoroutineWorker responsible for running periodic background checks for new GitLab to-do items
+ * and triggering local system notifications when new to-dos are found.
+ *
+ * Touchpoints:
+ * - Android WorkManager framework (PeriodicWorkRequestBuilder, WorkManager.enqueueUniquePeriodicWork).
+ * - com.example.labroxy.ui.LabroxyViewModel: Invokes setEnabled based on user push notification preferences in Settings.
+ * - com.example.labroxy.data.SessionStore: Reads notification preference settings and updates notified to-do IDs.
+ *
+ * Features / Functions:
+ * - Periodic background work execution (doWork).
+ * - Programmatically enabling or cancelling background periodic notification scheduling (setEnabled).
+ */
 package com.example.labroxy.notifications
 
 import android.content.Context

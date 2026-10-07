@@ -1,3 +1,24 @@
+/**
+ * File: LabroxyViewModel.kt
+ *
+ * What it does:
+ * AndroidViewModel that acts as the central business logic and state management coordinator for the application.
+ * Drives data pipelines, manages session state, handles offline caching strategies, parses deep links, and handles UI mutations.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.data.SessionStore: Reads and updates active session, app settings, and offline cache DataStore.
+ * - com.example.labroxy.data.GitLabRepository: Executes asynchronous network calls for GitLab data operations.
+ * - com.example.labroxy.notifications.TodoNotificationWorker: Enables or disables background notifications when settings change.
+ * - com.example.labroxy.ui.LabroxyApp: Exposes StateFlows (session, dashboard, project, group, detail, userState, settings, uploadState) consumed by Compose UI.
+ *
+ * Features / Functions:
+ * - Managing user session lifecycle (saveSession, signOut).
+ * - Progressive dashboard loading pipeline (combining local cache with real-time remote updates for to-dos, events, projects, and assigned items).
+ * - Loading project details, group details, user profile, and work item conversation details.
+ * - Parsing GitLab web URLs and reference links for inline navigation (loadGitLabLink, loadIssueReference).
+ * - Executing data mutations: adding comments/replies, updating issue status and labels, uploading file attachments, and toggling emoji reactions.
+ * - Updating application settings and UI preferences (theme mode, push notification switches, tab visibility toggles, search queries).
+ */
 package com.example.labroxy.ui
 
 import android.app.Application

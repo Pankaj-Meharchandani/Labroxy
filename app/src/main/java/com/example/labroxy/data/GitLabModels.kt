@@ -1,3 +1,26 @@
+/**
+ * File: GitLabModels.kt
+ *
+ * What it does:
+ * Defines Kotlin kotlinx.serialization data transfer objects (DTOs) representing GitLab REST API entities
+ * and response models used throughout the data, domain, offline caching, and UI layers.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.data.GitLabApi: Used as return types and body payloads for Ktor network API calls.
+ * - com.example.labroxy.data.GitLabRepository: Transport models across repository operations.
+ * - com.example.labroxy.data.SessionStore: Serialized/deserialized for local DataStore JSON offline caching.
+ * - com.example.labroxy.ui.LabroxyViewModel & com.example.labroxy.ui.LabroxyApp: State and UI rendering entities.
+ *
+ * Features / Functions:
+ * - User models (GitLabUser).
+ * - Project and group structure models (GitLabProject, GitLabNamespace, GitLabGroup).
+ * - Issues, work items, labels, links, and widget relations (GitLabIssue, GitLabIssueReferences, GitLabLabel, GitLabIssueLink, GitLabWorkItemDetail, GitLabWorkItemWidget, GitLabRelatedItem).
+ * - To-do item models (GitLabTodo, GitLabTodoTarget).
+ * - Merge request models (GitLabMergeRequest).
+ * - Activity and event models (GitLabEvent).
+ * - Discussions, notes, and emoji award models (GitLabDiscussion, GitLabNote, GitLabAwardEmoji).
+ * - Repository metadata models (GitLabCommit, GitLabBranch, GitLabBoard, GitLabUpload).
+ */
 package com.example.labroxy.data
 
 import kotlinx.serialization.SerialName

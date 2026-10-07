@@ -1,3 +1,20 @@
+/**
+ * File: GitLabRepository.kt
+ *
+ * What it does:
+ * Repository layer class that encapsulates data operations by binding an active GitLabSession to
+ * GitLabApi requests. Exposes suspend functions for fetching and modifying remote GitLab data.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.data.GitLabSession: Provides host URL and access token.
+ * - com.example.labroxy.data.GitLabApi: Delegates low-level REST network calls.
+ * - com.example.labroxy.ui.LabroxyViewModel: Called by ViewModel coroutines to fetch or update app data.
+ *
+ * Features / Functions:
+ * - Fetching authenticated user profiles, projects, groups, assigned issues, merge requests, to-dos, and events.
+ * - Fetching detailed project/group resources: issues, MRs, commits, branches, boards, labels, subgroups, and links.
+ * - Executing work items & discussion actions: adding comments/notes, updating issue states/labels, uploading files, and managing emoji reactions.
+ */
 package com.example.labroxy.data
 
 class GitLabRepository(

@@ -1,3 +1,28 @@
+/**
+ * File: LabroxyApp.kt
+ *
+ * What it does:
+ * Primary Jetpack Compose UI container for the Labroxy application. Manages top-level navigation state,
+ * rendering screens (Loading, SignIn, Dashboard, Project, Group, Detail, User, About), drawer navigation,
+ * bottom app bars, settings screen, markdown body rendering, attachment previews, and emoji reaction sheets.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.MainActivity: Hosted inside setContent { LabroxyApp(...) }.
+ * - com.example.labroxy.ui.LabroxyViewModel: Collects StateFlows (session, dashboard, project, group, detail, userState, settings, uploadState) and triggers actions.
+ * - com.example.labroxy.ui.theme.Theme: Wrapped by LabroxyTheme to apply light/dark styling.
+ * - com.example.labroxy.data.GitLabModels: Renders domain models (GitLabProject, GitLabIssue, GitLabMergeRequest, GitLabTodo, GitLabDiscussion, etc.).
+ *
+ * Features / Functions:
+ * - Top-level screen navigation, back button handling, and drawer layout management.
+ * - Connection and Sign-In screen for GitLab host URL and Personal Access Token entry.
+ * - Dashboard screen with filtered sections (Home, Projects, Groups, Assigned, MRs, To-Dos, Recent Activities) and drawer menu.
+ * - Settings screen (theme mode selection, notification toggles, sync intervals, tab visibility options, local cache clearing).
+ * - About screen displaying app metadata, technology stack, and developer Easter egg.
+ * - Project and Group details screens with tabbed browsing (Issues, MRs, Commits, Boards, Subgroups).
+ * - Work Detail / Conversation screen displaying issue/MR details, markdown descriptions, attachment file/image previews, discussion threads, and emoji reactions.
+ * - Comment composer bar supporting comment replies, image/file upload attachments, and clipboard image pasting.
+ * - User profile screen showing assigned issues and merge requests.
+ */
 @file:OptIn(ExperimentalLayoutApi::class)
 
 package com.example.labroxy.ui

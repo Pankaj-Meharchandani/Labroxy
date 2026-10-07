@@ -1,3 +1,19 @@
+/**
+ * File: Theme.kt
+ *
+ * What it does:
+ * Defines the Jetpack Compose Material Design 3 color schemes (light and dark) and root LabroxyTheme
+ * composable wrapper for consistent application-wide styling.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Wraps root UI components in LabroxyTheme.
+ * - com.example.labroxy.data.AppSettings / SessionStore: Evaluates themeMode setting ("system", "light", "dark").
+ *
+ * Features / Functions:
+ * - Defining light color scheme (LabroxyLightColors) with brand accent colors.
+ * - Defining dark color scheme (LabroxyDarkColors) optimized for dark mode.
+ * - Composable theme function (LabroxyTheme) that dynamically selects color palettes based on system theme or user setting.
+ */
 package com.example.labroxy.ui.theme
 
 import androidx.compose.material3.MaterialTheme

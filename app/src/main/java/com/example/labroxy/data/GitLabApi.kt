@@ -1,3 +1,24 @@
+/**
+ * File: GitLabApi.kt
+ *
+ * What it does:
+ * Low-level HTTP client implementation using Ktor to interact with the official GitLab REST API v4.
+ * Handles client configuration (negotiation, timeouts, header injection), token authentication,
+ * multi-page list requests, file uploads, and CRUD operations for GitLab resources.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.data.GitLabModels: Deserializes JSON network responses into strongly-typed Kotlin data models.
+ * - com.example.labroxy.data.GitLabRepository: Called directly by the repository layer to perform network requests.
+ * - Ktor HttpClient (Android engine, ContentNegotiation, kotlinx.serialization, HttpTimeout).
+ *
+ * Features / Functions:
+ * - User authentication & profile retrieval (currentUser, getUserByUsername).
+ * - Fetching projects, groups, subgroups, group projects, to-dos, assigned issues, and merge requests.
+ * - Fetching project activities, events, commits, branches, labels, and issue boards.
+ * - Fetching, creating, and updating issue discussions, merge request notes, and issue status/labels.
+ * - Uploading file and image attachments to project uploads (uploadFile).
+ * - Emoji reactions CRUD management (getAwardEmoji, addAwardEmoji, deleteAwardEmoji).
+ */
 package com.example.labroxy.data
 
 import io.ktor.client.HttpClient
