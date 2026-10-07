@@ -1,3 +1,19 @@
+/**
+ * File: WorkItemLists.kt
+ *
+ * What it does:
+ * Provides Kotlin LazyListScope extension functions for rendering lists of projects, groups, issues, assigned work, merge requests, to-dos, notifications, and issue boards.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.dashboard.DashboardScreen: Invokes `projectItems`, `groupItems`, `assignedItems`, `mrItems`, `todoItems`, `notificationItems`.
+ * - com.example.labroxy.ui.screens.ProjectScreen: Invokes `issueItems`, `mrItems`, `boardItems`.
+ * - com.example.labroxy.ui.screens.GroupScreen: Invokes `projectItems`, `groupItems`, `issueItems`.
+ * - com.example.labroxy.ui.screens.UserScreen: Invokes `issueItems`, `mrItems`.
+ *
+ * Features / Functions:
+ * - `projectItems`, `groupItems`, `issueItems`, `mrItems`, `todoItems`, `notificationItems`, `boardItems`: Lazy column list item generators with empty list handling.
+ * - `assignedItems`: Open vs. Completed assigned work filtering tabs.
+ */
 package com.example.labroxy.ui.components
 
 import androidx.compose.foundation.layout.Arrangement

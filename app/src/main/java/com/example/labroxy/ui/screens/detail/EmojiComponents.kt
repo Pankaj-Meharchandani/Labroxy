@@ -1,3 +1,18 @@
+/**
+ * File: EmojiComponents.kt
+ *
+ * What it does:
+ * Renders award emoji reaction rows and the modal bottom sheet reaction picker.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.screens.detail.WorkDetailScreen: Hosted in work detail summary card and bottom sheet.
+ * - com.example.labroxy.ui.screens.detail.DiscussionComponents: Hosted in note body items.
+ *
+ * Features / Functions:
+ * - `emojiMap`: Comprehensive map of GitLab emoji names to Unicode emoji characters.
+ * - `EmojiRow`: Flow row displaying existing award reaction counts with active user toggle state and reaction picker trigger button.
+ * - `EmojiPickerSheet`: Searchable Material 3 `ModalBottomSheet` grid displaying emoji options for adding reactions.
+ */
 package com.example.labroxy.ui.screens.detail
 
 import androidx.compose.foundation.BorderStroke

@@ -1,3 +1,17 @@
+/**
+ * File: DetailSections.kt
+ *
+ * What it does:
+ * Renders assignee people sections and related work item hierarchy/linked item sections in work detail views.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.screens.detail.WorkDetailScreen: Hosted in work detail summary card.
+ * - com.example.labroxy.ui.components.Avatars: Renders `UserAvatar` chips in assignee section.
+ *
+ * Features / Functions:
+ * - `DetailPeopleSection`: Flow row of user avatar surface chips displaying assigned users with user click callbacks.
+ * - `DetailRelationSection`: Vertical list of surface cards displaying parent, child, or linked work items with navigation links.
+ */
 package com.example.labroxy.ui.screens.detail
 
 import androidx.compose.foundation.BorderStroke

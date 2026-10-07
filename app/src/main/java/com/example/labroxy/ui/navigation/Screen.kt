@@ -1,3 +1,19 @@
+/**
+ * File: Screen.kt
+ *
+ * What it does:
+ * Defines navigation enum classes (`Screen` and `WorkSection`) that model the top-level application screens
+ * and sidebar/drawer navigation sections along with their associated icons and display labels.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Evaluates `Screen` enum targets for stateful navigation.
+ * - com.example.labroxy.ui.navigation.WorkDrawer: Iterates `WorkSection` enum values to construct the navigation drawer.
+ * - com.example.labroxy.ui.dashboard.DashboardScreen: Consumes `WorkSection` to render section titles and list items.
+ *
+ * Features / Functions:
+ * - `Screen` enum (Loading, SignIn, Dashboard, Project, Group, Detail, User, About).
+ * - `WorkSection` enum (Home, Projects, Groups, Assigned, MergeRequests, Todos, Notifications, Settings) with labels and Material icons.
+ */
 package com.example.labroxy.ui.navigation
 
 import androidx.compose.material.icons.Icons

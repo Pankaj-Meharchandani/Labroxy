@@ -1,3 +1,20 @@
+/**
+ * File: StatusBlocks.kt
+ *
+ * What it does:
+ * Reusable feedback UI blocks for displaying loading progress, error messages, and empty list states.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.dashboard.DashboardScreen: Displays loading progress and error cards.
+ * - com.example.labroxy.ui.screens.*: Renders empty list placeholders across all detail/list screens.
+ * - com.example.labroxy.ui.LabroxyApp: Displays `LoadingSessionScreen` during session initialization.
+ *
+ * Features / Functions:
+ * - `LoadingBlock`: Linear progress indicator with status message.
+ * - `ErrorBlock`: Error container card displaying error description.
+ * - `EmptyBlock`: Empty list placeholder with folder icon and custom text.
+ * - `LoadingSessionScreen`: Full-screen centered circular progress indicator.
+ */
 package com.example.labroxy.ui.components
 
 import androidx.compose.foundation.layout.Arrangement

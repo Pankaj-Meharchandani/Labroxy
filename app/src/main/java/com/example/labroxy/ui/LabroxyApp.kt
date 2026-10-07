@@ -1,3 +1,24 @@
+/**
+ * File: LabroxyApp.kt
+ *
+ * What it does:
+ * Central top-level Jetpack Compose host component for the Labroxy application.
+ * Manages active screen state transitions, deep-link navigation handling, system back handler navigation,
+ * and delegates screen rendering to dedicated screen composables.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.MainActivity: Hosted inside setContent { LabroxyApp(...) }.
+ * - com.example.labroxy.ui.LabroxyViewModel: Observes StateFlows (session, dashboard, project, detail, settings) and triggers operations.
+ * - com.example.labroxy.ui.navigation.Screen: Evaluates top-level navigation states (Loading, SignIn, Dashboard, Project, Group, Detail, User, About).
+ * - com.example.labroxy.ui.screens.*: Hosts top-level screen composables.
+ * - com.example.labroxy.ui.theme.Theme: Wrapped inside LabroxyTheme.
+ *
+ * Features / Functions:
+ * - Session state evaluation (redirecting to Loading, SignIn, or Dashboard).
+ * - Deep link URL parsing and automatic navigation to detail views.
+ * - Animated screen state transitions using AnimatedContent.
+ * - Back button backstack management.
+ */
 package com.example.labroxy.ui
 
 import androidx.activity.compose.BackHandler

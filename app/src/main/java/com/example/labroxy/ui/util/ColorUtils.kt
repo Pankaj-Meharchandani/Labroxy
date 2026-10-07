@@ -1,3 +1,17 @@
+/**
+ * File: ColorUtils.kt
+ *
+ * What it does:
+ * Provides utility functions for parsing hex color codes and determining high-contrast text color against dynamic backgrounds.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.components.ChipsAndBadges: Calculates background and text colors for `GitLabLabelChip`.
+ * - com.example.labroxy.data.GitLabLabel: Uses color hex strings from GitLab label API payloads.
+ *
+ * Features / Functions:
+ * - Hex string to Compose `Color` conversion (`gitLabColor`).
+ * - Luminance-based high contrast foreground text color selection (`readableOn` - returns dark text or white text).
+ */
 package com.example.labroxy.ui.util
 
 import androidx.compose.ui.graphics.Color

@@ -1,3 +1,17 @@
+/**
+ * File: DashboardCardSpec.kt
+ *
+ * What it does:
+ * Defines data specification model (`DashboardCardSpec`) and builder function (`buildDashboardCardSpecs`) for constructing dynamic dashboard cards based on data state and settings.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.dashboard.HomeStyles: Renders dashboard card metrics in `Functional` and `Stylish` home UI layouts.
+ * - com.example.labroxy.data.AppSettings: Filters cards according to tab visibility toggles.
+ *
+ * Features / Functions:
+ * - `DashboardCardSpec` data class (id, title, count, subtitle, timestamp, icon, section, gradient colors).
+ * - `buildDashboardCardSpecs`: Computes count and relative activity timestamps for MRs, To-Dos, Work Items, Projects, and Groups cards.
+ */
 package com.example.labroxy.ui.dashboard
 
 import androidx.compose.material.icons.Icons

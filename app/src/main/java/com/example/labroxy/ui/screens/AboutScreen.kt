@@ -1,3 +1,20 @@
+/**
+ * File: AboutScreen.kt
+ *
+ * What it does:
+ * Renders application metadata screen displaying app icon, version name, build code, description, technology stack chips, and developer Easter egg.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Displayed when `Screen.About` is active.
+ *
+ * Features / Functions:
+ * - Top app bar with back navigation button.
+ * - Dynamic app icon and package version retrieval via PackageManager.
+ * - 7-click developer Easter egg unlock.
+ * - Project description card.
+ * - Technology stack assist chips (Kotlin, Jetpack Compose, Material 3, DataStore, Coroutines, Flow, Coil, Ktor).
+ * - Copyright footer.
+ */
 package com.example.labroxy.ui.screens
 
 import android.content.pm.PackageManager

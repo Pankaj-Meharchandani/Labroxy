@@ -1,3 +1,23 @@
+/**
+ * File: SettingsScreen.kt
+ *
+ * What it does:
+ * Renders application preferences screen for theme selection, home screen tab visibility toggles, notification options, sync frequency, and offline cache management.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.dashboard.DashboardScreen: Displayed when `WorkSection.Settings` is active.
+ * - com.example.labroxy.data.AppSettings: Reads and updates user preference values.
+ * - com.example.labroxy.ui.LabroxyViewModel: Triggers DataStore updates for theme, UI style, notifications, and tabs.
+ *
+ * Features / Functions:
+ * - Home screen tabs & activity toggles (`SettingToggleRow`).
+ * - Theme mode selection cards (`ThemeOptionCard`: System, Light, Dark).
+ * - Home UI style selection cards (Minimal, Functional, Stylish).
+ * - Push notifications switch with runtime permission handling.
+ * - Sync frequency dropdown menu.
+ * - Offline local cache size display & clear cache confirmation dialog.
+ * - Navigation link to About screen.
+ */
 package com.example.labroxy.ui.screens
 
 import android.Manifest

@@ -1,3 +1,23 @@
+/**
+ * File: CommentParser.kt
+ *
+ * What it does:
+ * Data models and parser logic for extracting attachments, file uploads, image URLs, and cross-project issue references
+ * from markdown comment bodies.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.screens.detail.DiscussionComponents: Uses extracted attachment lists and note segments to render notes.
+ * - com.example.labroxy.ui.components.ChipsAndBadges: Renders `CommentAttachment` items in image previews and file chips.
+ * - com.example.labroxy.ui.WorkDetailData: Analyzes comment text against target issue/MR metadata.
+ *
+ * Features / Functions:
+ * - Extracting markdown images, markdown links, HTML images, and bare HTTP URLs (`extractCommentAttachments`).
+ * - Resolving relative upload paths to absolute GitLab API attachment URLs (`resolveAttachmentUrl`).
+ * - Extracting issue references e.g. `#123` or `project#123` (`extractIssueReferences`).
+ * - Normalizing HTTP URLs (`normalizeHttpUrl`).
+ * - Image URL extension detection (`isPreviewableImageUrl`).
+ * - HTML tag stripping (`stripHtmlTags`).
+ */
 package com.example.labroxy.ui.util
 
 import android.net.Uri

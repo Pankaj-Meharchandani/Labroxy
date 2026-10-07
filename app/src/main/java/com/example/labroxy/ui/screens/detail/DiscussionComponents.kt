@@ -1,3 +1,22 @@
+/**
+ * File: DiscussionComponents.kt
+ *
+ * What it does:
+ * Renders discussion cards, system notes, discussion note bodies, note replies, and the bottom comment composer bar.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.screens.detail.WorkDetailScreen: Hosted inside WorkDetailScreen LazyColumn.
+ * - com.example.labroxy.ui.components.ClickableCommentText: Renders styled comment text.
+ * - com.example.labroxy.ui.util.CommentParser: Extracts attachments, images, and issue references.
+ *
+ * Features / Functions:
+ * - `NoteBody`: Markdown comment body renderer displaying text segments, image previews, file chips, and issue reference chips.
+ * - `CommentComposerBar`: Bottom input bar supporting reply banners, text input, file attachment launcher, and clipboard image pasting.
+ * - `DiscussionCard`: Discussion thread container displaying first note and indented replies.
+ * - `SystemNoteRow`: System activity note item card.
+ * - `DiscussionNoteBody`: Individual note body wrapper with reaction row and Reply button.
+ * - `DiscussionReply`: Indented thread reply note item.
+ */
 package com.example.labroxy.ui.screens.detail
 
 import android.content.ClipboardManager

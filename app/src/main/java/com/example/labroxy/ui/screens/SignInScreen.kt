@@ -1,3 +1,19 @@
+/**
+ * File: SignInScreen.kt
+ *
+ * What it does:
+ * Renders sign-in interface for entering GitLab host URL and Personal Access Token (PAT).
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Displayed when `session.isReady` is false.
+ * - com.example.labroxy.ui.LabroxyViewModel: Triggers `saveSession(host, token)` on form submission.
+ *
+ * Features / Functions:
+ * - Gradient background and app branding title.
+ * - GitLab host URL input field (supports gitlab.com or self-hosted instances).
+ * - Personal Access Token input field with password visibility toggle.
+ * - Connect button validation.
+ */
 package com.example.labroxy.ui.screens
 
 import androidx.compose.foundation.BorderStroke

@@ -1,3 +1,19 @@
+/**
+ * File: DateTimeUtils.kt
+ *
+ * What it does:
+ * Provides pure utility functions for parsing ISO 8601 timestamps and formatting human-readable relative time strings.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.components.WorkItemCards: Formats activity timestamps on activity and comment cards.
+ * - com.example.labroxy.ui.dashboard.DashboardCardSpec: Calculates relative timestamps for dashboard metric specs.
+ * - com.example.labroxy.ui.screens.detail.DiscussionComponents: Displays comment dates.
+ *
+ * Features / Functions:
+ * - Relative time string formatting (`formatRelativeTime` e.g., "Just now", "5m ago", "2h ago", "3d ago").
+ * - Parsing ISO timestamps to epoch milliseconds (`parseIsoTimeToEpochMillis`).
+ * - Compact date formatting (`compactGitLabDate` e.g., "yyyy-MM-dd HH:mm").
+ */
 package com.example.labroxy.ui.util
 
 import java.text.SimpleDateFormat

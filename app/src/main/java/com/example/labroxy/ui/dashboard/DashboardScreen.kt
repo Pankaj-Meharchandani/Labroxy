@@ -1,3 +1,20 @@
+/**
+ * File: DashboardScreen.kt
+ *
+ * What it does:
+ * Renders top-level dashboard layout with navigation drawer integration, top app bar, search input, and section switcher.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Hosted inside top-level screen container when `Screen.Dashboard` is active.
+ * - com.example.labroxy.ui.navigation.WorkDrawer: Integrates navigation drawer sheet.
+ * - com.example.labroxy.ui.components.WorkItemLists: Renders list content for Projects, Groups, Assigned, MRs, To-Dos, and Notifications.
+ * - com.example.labroxy.ui.screens.SettingsScreen: Displays settings when `WorkSection.Settings` is selected.
+ *
+ * Features / Functions:
+ * - ModalNavigationDrawer scaffold setup.
+ * - Section header title and search text field.
+ * - Section routing for Home, Projects, Groups, Assigned, MergeRequests, Todos, Notifications, and Settings.
+ */
 package com.example.labroxy.ui.dashboard
 
 import androidx.activity.compose.BackHandler

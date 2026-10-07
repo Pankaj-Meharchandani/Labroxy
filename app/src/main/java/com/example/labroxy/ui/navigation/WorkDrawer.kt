@@ -1,3 +1,20 @@
+/**
+ * File: WorkDrawer.kt
+ *
+ * What it does:
+ * Renders the modal navigation drawer sheet, drawer section badges, and home section navigation row cards.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.dashboard.DashboardScreen: Hosted inside ModalNavigationDrawer content.
+ * - com.example.labroxy.ui.navigation.Screen: Uses `WorkSection` for menu rendering and navigation selection.
+ * - com.example.labroxy.ui.LoadState: Reads active `DashboardData` to compute item counts for drawer badges.
+ *
+ * Features / Functions:
+ * - Navigation drawer sheet (`WorkDrawer`).
+ * - Unread item count badges (`DrawerBadge`).
+ * - Clickable home navigation row cards (`HomeNavRow`).
+ * - Sign out button trigger.
+ */
 package com.example.labroxy.ui.navigation
 
 import androidx.compose.foundation.BorderStroke

@@ -1,3 +1,17 @@
+/**
+ * File: ClickableCommentText.kt
+ *
+ * What it does:
+ * Renders annotated text with styled links (`http://`, `https://`, markdown links), `@` user mentions, bold, and italic text formatting with click handlers.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.screens.detail.DiscussionComponents: Renders comment bodies inside `NoteBody`.
+ *
+ * Features / Functions:
+ * - Parsing URLs, markdown links, user handles (`@username`), bold (`**text**`), and italics (`*text*`).
+ * - Highlighting links and mentions in primary theme accent colors.
+ * - Triggering `onLinkClick` or `onUserClick` based on tapped text range annotation.
+ */
 package com.example.labroxy.ui.components
 
 import androidx.compose.foundation.text.ClickableText

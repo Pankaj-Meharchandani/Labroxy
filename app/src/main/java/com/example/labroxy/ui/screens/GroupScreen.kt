@@ -1,3 +1,19 @@
+/**
+ * File: GroupScreen.kt
+ *
+ * What it does:
+ * Renders group detail view with tabbed browsing for group projects, subgroups, and group issues.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Displayed when `Screen.Group` is active.
+ * - com.example.labroxy.ui.GroupData: Displays group info, projects, subgroups, and group issues.
+ * - com.example.labroxy.ui.components.WorkItemLists: Renders list items.
+ *
+ * Features / Functions:
+ * - Top app bar with back navigation button.
+ * - Group metadata card.
+ * - Bottom navigation bar tabs: Projects, Subgroups, Issues.
+ */
 package com.example.labroxy.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement

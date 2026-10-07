@@ -1,3 +1,24 @@
+/**
+ * File: WorkItemCards.kt
+ *
+ * What it does:
+ * Reusable card and row item composables for displaying projects, issues, merge requests, commits, activities, and user profiles.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.components.WorkItemLists: Invokes item cards inside LazyListScope extension functions.
+ * - com.example.labroxy.ui.dashboard.HomeStyles: Renders `ActivityCard` inside recent activities sections.
+ * - com.example.labroxy.ui.screens.UserScreen: Renders `UserHeroCard`.
+ *
+ * Features / Functions:
+ * - `ProjectCard`: Project card with avatar, path, description, star/fork/issue metrics.
+ * - `ProjectHero`: Project banner header.
+ * - `IssueRow`: Issue list item card.
+ * - `MergeRequestRow`: Merge request list item card.
+ * - `CommitRow`: Commit list item card.
+ * - `ListCard`: Generic list card container with user avatar support.
+ * - `ActivityCard`: Activity event card.
+ * - `UserHeroCard`: User profile hero card.
+ */
 package com.example.labroxy.ui.components
 
 import androidx.compose.foundation.BorderStroke

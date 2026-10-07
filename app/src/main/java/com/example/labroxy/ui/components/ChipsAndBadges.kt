@@ -1,3 +1,21 @@
+/**
+ * File: ChipsAndBadges.kt
+ *
+ * What it does:
+ * Reusable chip and badge composables for rendering metrics, GitLab labels, file attachment buttons, and image previews.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.components.WorkItemCards: Renders label lists (`LabelRow`) and star/fork metrics (`MetricChip`).
+ * - com.example.labroxy.ui.screens.detail.DiscussionComponents: Renders comment attachments (`CommentFileChip`, `CommentImagePreview`).
+ * - com.example.labroxy.ui.util.ColorUtils: Computes contrast colors for `GitLabLabelChip`.
+ *
+ * Features / Functions:
+ * - `MetricChip`: Assist chip displaying icon and count/text.
+ * - `LabelRow`: Flow row of label chips.
+ * - `GitLabLabelChip`: Styled label chip using custom hex background and text colors.
+ * - `CommentFileChip`: Interactive attachment chip for opening external files.
+ * - `CommentImagePreview`: SubcomposeAsyncImage card preview for comment image attachments with SVG support.
+ */
 package com.example.labroxy.ui.components
 
 import androidx.compose.foundation.BorderStroke

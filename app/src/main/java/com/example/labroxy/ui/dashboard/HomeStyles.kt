@@ -1,3 +1,22 @@
+/**
+ * File: HomeStyles.kt
+ *
+ * What it does:
+ * Renders home screen feed variants (`Minimal`, `Functional`, `Stylish`), welcome header blocks, and recent activity sections.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.dashboard.DashboardScreen: Invokes `homeItems` inside DashboardScreen LazyColumn.
+ * - com.example.labroxy.data.AppSettings: Evaluates `homeUiStyle` setting ("minimal", "functional", "stylish").
+ * - com.example.labroxy.ui.components.WorkItemCards: Renders `ActivityCard` items.
+ *
+ * Features / Functions:
+ * - `WelcomeBlock`: User welcome text banner.
+ * - `homeItems`: Router function selecting home layout implementation based on user setting.
+ * - `homeItemsMinimal`: Clean list layout with simple navigation rows.
+ * - `homeItemsFunctional`: Grid layout with header card, metric cards, and attention items.
+ * - `homeItemsStylish`: Expressive gradient hero banner, pill stats, horizontal metric carousel, and focus workspace.
+ * - `RecentActivitiesSection`: List of 5 most recent user and project events.
+ */
 package com.example.labroxy.ui.dashboard
 
 import androidx.compose.foundation.BorderStroke

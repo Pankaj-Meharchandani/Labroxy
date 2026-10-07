@@ -1,3 +1,18 @@
+/**
+ * File: Avatars.kt
+ *
+ * What it does:
+ * Reusable avatar composables for displaying user profile pictures and project fallback initial badges.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.components.WorkItemCards: Renders user profile images in `ListCard` and hero banners.
+ * - com.example.labroxy.ui.screens.detail.DiscussionComponents: Displays comment author avatars.
+ * - com.example.labroxy.ui.screens.UserScreen: Displays large avatar in user profile hero card.
+ *
+ * Features / Functions:
+ * - `UserAvatar`: Circular async image loader using Coil, with fallback to initial letter badge on error/null.
+ * - `ProjectAvatar`: Project initial icon badge.
+ */
 package com.example.labroxy.ui.components
 
 import androidx.compose.foundation.background

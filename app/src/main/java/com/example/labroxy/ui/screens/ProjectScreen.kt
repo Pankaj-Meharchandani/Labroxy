@@ -1,3 +1,19 @@
+/**
+ * File: ProjectScreen.kt
+ *
+ * What it does:
+ * Renders project detail view with tabbed browsing for issues, merge requests, commits, and issue boards.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Displayed when `Screen.Project` is active.
+ * - com.example.labroxy.ui.ProjectData: Displays project metadata, issues, MRs, commits, branches, and boards.
+ * - com.example.labroxy.ui.components.WorkItemLists: Renders list items.
+ *
+ * Features / Functions:
+ * - Top app bar with back navigation button.
+ * - Project hero header card (`ProjectHero`).
+ * - Bottom navigation bar tabs: Issues, MRs, Commits, Boards.
+ */
 package com.example.labroxy.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement

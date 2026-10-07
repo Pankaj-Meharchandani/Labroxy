@@ -1,3 +1,23 @@
+/**
+ * File: WorkDetailScreen.kt
+ *
+ * What it does:
+ * Renders detail and discussion thread view for GitLab issues and merge requests.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Displayed when `Screen.Detail` is active.
+ * - com.example.labroxy.ui.WorkDetailData: Displays item title, description, assignees, relations, discussions, and award emoji.
+ * - com.example.labroxy.ui.screens.detail.DiscussionComponents: Renders discussion cards, notes, and comment composer bar.
+ * - com.example.labroxy.ui.screens.detail.EmojiComponents: Renders award emoji row and reaction picker bottom sheet.
+ *
+ * Features / Functions:
+ * - Top app bar with back navigation button.
+ * - Main work item summary card with description, state, labels, assignees, parent/child/linked item sections.
+ * - LazyColumn conversation list with automatic scroll-to-bottom on new notes.
+ * - Issue status reopening/closing and CSV label updating controls.
+ * - Bottom `CommentComposerBar` for adding comments, replies, and attachments.
+ * - `EmojiPickerSheet` bottom sheet for picking emoji reactions.
+ */
 package com.example.labroxy.ui.screens.detail
 
 import android.net.Uri

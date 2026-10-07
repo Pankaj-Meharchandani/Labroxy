@@ -1,3 +1,19 @@
+/**
+ * File: UserScreen.kt
+ *
+ * What it does:
+ * Renders user profile view showing profile card and tabs for assigned issues and merge requests.
+ *
+ * Touchpoints:
+ * - com.example.labroxy.ui.LabroxyApp: Displayed when `Screen.User` is active.
+ * - com.example.labroxy.ui.UserData: Displays user profile info, assigned issues, and merge requests.
+ * - com.example.labroxy.ui.components.WorkItemCards: Renders `UserHeroCard`.
+ *
+ * Features / Functions:
+ * - Top app bar with back navigation button.
+ * - User hero header card (`UserHeroCard`).
+ * - Bottom navigation bar tabs: Assigned Issues, Merge Requests.
+ */
 package com.example.labroxy.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
