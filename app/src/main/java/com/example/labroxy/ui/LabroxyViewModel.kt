@@ -173,54 +173,61 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
 
                             val repo = GitLabRepository(active)
 
-                            // 1. Todos (quick)
-                            data = data.copy(todos = runCatching { repo.todos("pending") }.getOrDefault(data.todos))
+                            // These endpoints are independent. Fetch them together so the dashboard
+                            // is limited by the slowest request instead of their total latency.
+                            val refreshed = coroutineScope {
+                                val todos = async { runCatching { repo.todos("pending") }.getOrDefault(data.todos) }
+                                val doneTodos = async { runCatching { repo.todos("done") }.getOrDefault(data.doneTodos) }
+                                val events = async { runCatching { repo.events() }.getOrDefault(data.events) }
+                                val assigned = async { runCatching { repo.assignedIssues(data.user.id) }.getOrDefault(data.assignedWorkItems) }
+                                val projects = async { runCatching { repo.projects("") }.getOrDefault(data.projects) }
+                                val groups = async { runCatching { repo.groups("") }.getOrDefault(data.groups) }
+                                data.copy(
+                                    todos = todos.await(),
+                                    doneTodos = doneTodos.await(),
+                                    events = events.await(),
+                                    assignedWorkItems = assigned.await(),
+                                    projects = projects.await(),
+                                    groups = groups.await()
+                                )
+                            }
+                            data = refreshed
                             sessionStore.saveTodos(data.todos)
-                            emit(LoadState.Success(data))
-
-                            data = data.copy(doneTodos = runCatching { repo.todos("done") }.getOrDefault(data.doneTodos))
                             sessionStore.saveDoneTodos(data.doneTodos)
-                            emit(LoadState.Success(data))
-
-                            // 2. Global Events
-                            data = data.copy(events = runCatching { repo.events() }.getOrDefault(data.events))
                             sessionStore.saveEvents(data.events)
-                            emit(LoadState.Success(data))
-
-                            // 3. Projects & Assigned (needed for project events)
-                            data = data.copy(assignedWorkItems = runCatching { repo.assignedIssues(data.user.id) }.getOrDefault(data.assignedWorkItems))
                             sessionStore.saveAssignedWorkItems(data.assignedWorkItems)
-                            emit(LoadState.Success(data))
-
-                            data = data.copy(projects = runCatching { repo.projects("") }.getOrDefault(data.projects))
                             sessionStore.saveProjects(data.projects)
+                            sessionStore.saveGroups(data.groups)
                             emit(LoadState.Success(data))
 
                             // 4. Project Events (intensive)
                             val pids = (data.assignedWorkItems.mapNotNull { it.projectId } + data.projects.take(15).map { it.id }).distinct().take(25)
-                            val allProjectEvents = java.util.Collections.synchronizedList(mutableListOf<GitLabEvent>())
-                            coroutineScope {
-                                pids.forEach { pid ->
+                            val projectEventRequests = coroutineScope {
+                                val limiter = Semaphore(6)
+                                pids.map { pid ->
                                     async {
-                                        runCatching { repo.projectEvents(pid) }.getOrNull()?.let { allProjectEvents.addAll(it) }
+                                        limiter.withPermit {
+                                            runCatching { repo.projectEvents(pid) }.getOrNull().orEmpty()
+                                        }
                                     }
-                                }
+                                }.awaitAll()
                             }
-                            data = data.copy(projectEvents = allProjectEvents.toList().distinctBy { it.id })
+                            data = data.copy(projectEvents = projectEventRequests.flatten().distinctBy { it.id })
                             sessionStore.saveProjectEvents(data.projectEvents)
                             emit(LoadState.Success(data))
 
-                            // 5. Rest of the data
-                            data = data.copy(assignedCompletedWorkItems = runCatching { repo.assignedIssues(data.user.id, "closed") }.getOrDefault(data.assignedCompletedWorkItems))
+                            // Remaining dashboard sections are independent too.
+                            val remaining = coroutineScope {
+                                val completed = async { runCatching { repo.assignedIssues(data.user.id, "closed") }.getOrDefault(data.assignedCompletedWorkItems) }
+                                val mergeRequests = async { runCatching { repo.assignedMergeRequests(data.user.id) }.getOrDefault(data.assignedMergeRequests) }
+                                data.copy(
+                                    assignedCompletedWorkItems = completed.await(),
+                                    assignedMergeRequests = mergeRequests.await()
+                                )
+                            }
+                            data = remaining
                             sessionStore.saveAssignedCompletedWorkItems(data.assignedCompletedWorkItems)
-                            emit(LoadState.Success(data))
-
-                            data = data.copy(assignedMergeRequests = runCatching { repo.assignedMergeRequests(data.user.id) }.getOrDefault(data.assignedMergeRequests))
                             sessionStore.saveAssignedMergeRequests(data.assignedMergeRequests)
-                            emit(LoadState.Success(data))
-
-                            data = data.copy(groups = runCatching { repo.groups("") }.getOrDefault(data.groups))
-                            sessionStore.saveGroups(data.groups)
                             emit(LoadState.Success(data))
                         },
                         onFailure = { emit(LoadState.Error(it.toFriendlyMessage())) }
@@ -329,15 +336,15 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             _project.value = LoadState.Loading
             runCatching {
                 val repo = GitLabRepository(active)
-                val project = repo.project(projectId)
-                ProjectData(
-                    project = project,
-                    issues = runCatching { repo.issues(projectId) }.getOrDefault(emptyList()),
-                    mergeRequests = runCatching { repo.mergeRequests(projectId) }.getOrDefault(emptyList()),
-                    commits = runCatching { repo.commits(projectId) }.getOrDefault(emptyList()),
-                    branches = runCatching { repo.branches(projectId) }.getOrDefault(emptyList()),
-                    boards = runCatching { repo.boards(projectId) }.getOrDefault(emptyList())
-                )
+                coroutineScope {
+                    val project = async { repo.project(projectId) }
+                    val issues = async { runCatching { repo.issues(projectId) }.getOrDefault(emptyList()) }
+                    val mergeRequests = async { runCatching { repo.mergeRequests(projectId) }.getOrDefault(emptyList()) }
+                    val commits = async { runCatching { repo.commits(projectId) }.getOrDefault(emptyList()) }
+                    val branches = async { runCatching { repo.branches(projectId) }.getOrDefault(emptyList()) }
+                    val boards = async { runCatching { repo.boards(projectId) }.getOrDefault(emptyList()) }
+                    ProjectData(project.await(), issues.await(), mergeRequests.await(), commits.await(), branches.await(), boards.await())
+                }
             }.fold(
                 onSuccess = { _project.value = LoadState.Success(it) },
                 onFailure = { _project.value = LoadState.Error(it.toFriendlyMessage()) }
