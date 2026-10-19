@@ -53,6 +53,7 @@ import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -148,12 +149,10 @@ fun NoteBody(
         segments.forEach { segment ->
             when (segment) {
                 is NoteSegment.Text -> {
-                    ClickableCommentText(
+                    ChecklistAwareText(
                         text = segment.text,
                         onLinkClick = { url ->
-                            if (!onGitLabLinkClick(url)) {
-                                uriHandler.openUri(url)
-                            }
+                            if (!onGitLabLinkClick(url)) uriHandler.openUri(url)
                         },
                         onUserClick = onUserClick
                     )
@@ -200,6 +199,54 @@ fun NoteBody(
                         modifier = Modifier.widthIn(max = 260.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+private val checklistLinePattern = Regex("^\\s*[-*]\\s+\\[([ xX])]\\s+(.*)$")
+
+@Composable
+private fun ChecklistAwareText(
+    text: String,
+    onLinkClick: (String) -> Unit,
+    onUserClick: (String) -> Unit
+) {
+    val lines = text.split('\n')
+    val containsChecklist = lines.any { checklistLinePattern.matches(it) }
+    if (!containsChecklist) {
+        ClickableCommentText(text, onLinkClick, onUserClick)
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        lines.forEach { line ->
+            val match = checklistLinePattern.matchEntire(line)
+            if (match != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Checkbox(
+                        checked = match.groupValues[1].equals("x", ignoreCase = true),
+                        onCheckedChange = null,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                    ClickableCommentText(
+                        text = match.groupValues[2],
+                        onLinkClick = onLinkClick,
+                        onUserClick = onUserClick,
+                        modifier = Modifier.padding(top = 10.dp)
+                    )
+                }
+            } else if (line.isBlank()) {
+                Spacer(Modifier.height(6.dp))
+            } else {
+                ClickableCommentText(
+                    text = line,
+                    onLinkClick = onLinkClick,
+                    onUserClick = onUserClick
+                )
             }
         }
     }
