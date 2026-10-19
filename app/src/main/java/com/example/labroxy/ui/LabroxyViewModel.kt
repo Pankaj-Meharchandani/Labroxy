@@ -584,12 +584,25 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
         detailJob = viewModelScope.launch {
             val active = session.value
             if (!silent) _detail.value = LoadState.Loading
-            runCatching {
-                val repo = GitLabRepository(active)
-                detailDataForTarget(repo, target)
-            }.fold(
-                onSuccess = { _detail.value = LoadState.Success(it) },
-                onFailure = { 
+            val repo = GitLabRepository(active)
+            runCatching { detailDataForTarget(repo, target) }.fold(
+                onSuccess = { loaded ->
+                    // Render the issue immediately. Reaction endpoints are enriched in the
+                    // same coroutine afterward so a slow reaction lookup never blocks opening.
+                    _detail.value = LoadState.Success(loaded)
+                    runCatching {
+                        val path = when (target) {
+                            is DetailTarget.Issue -> "projects/${target.projectId}/issues/${target.issueIid}"
+                            is DetailTarget.MergeRequest -> "projects/${target.projectId}/merge_requests/${target.mergeRequestIid}"
+                        }
+                        loaded.copy(discussions = loaded.discussions.withNoteAwardEmoji(repo, path))
+                    }.onSuccess { enriched ->
+                        if ((_detail.value as? LoadState.Success)?.value?.target == target) {
+                            _detail.value = LoadState.Success(enriched)
+                        }
+                    }
+                },
+                onFailure = {
                     if (!silent) _detail.value = LoadState.Error(it.toFriendlyMessage()) 
                 }
             )
@@ -665,7 +678,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     childItems = children.distinctBy { it.id.takeIf { id -> id != 0L } ?: it.webUrl.hashCode().toLong() },
                     linkedItems = (linkedFromWorkItem + linkedFromIssues)
                         .distinctBy { it.id.takeIf { id -> id != 0L } ?: it.webUrl.hashCode().toLong() },
-                    discussions = detailParts.discussions.withNoteAwardEmoji(repo, path),
+                    discussions = detailParts.discussions,
                     awardEmoji = detailParts.emoji
                 )
             }
@@ -684,7 +697,7 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
                     state = mr.state,
                     description = mr.description,
                     webUrl = mr.webUrl,
-                    discussions = detailParts.second.withNoteAwardEmoji(repo, path),
+                    discussions = detailParts.second,
                     awardEmoji = detailParts.first
                 )
             }
@@ -730,10 +743,14 @@ class LabroxyViewModel(application: Application) : AndroidViewModel(application)
             discussion.copy(
                 notes = discussion.notes.map { note ->
                     async {
-                        val awards = semaphore.withPermit {
-                            runCatching {
-                                repo.getAwardEmoji("$targetPath/notes/${note.id}")
-                            }.getOrDefault(note.awardEmoji)
+                        val awards = if (note.awardEmoji.isNotEmpty()) {
+                            note.awardEmoji
+                        } else {
+                            semaphore.withPermit {
+                                runCatching {
+                                    repo.getAwardEmoji("$targetPath/notes/${note.id}")
+                                }.getOrDefault(note.awardEmoji)
+                            }
                         }
                         note.copy(awardEmoji = awards)
                     }
