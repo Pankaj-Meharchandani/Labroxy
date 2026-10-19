@@ -21,6 +21,7 @@ package com.example.labroxy.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.AssistChip
@@ -45,18 +47,29 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.SubcomposeAsyncImage
 import coil.decode.SvgDecoder
 import coil.request.ImageRequest
@@ -133,7 +146,7 @@ fun CommentFileChip(attachment: CommentAttachment) {
 @Composable
 fun CommentImagePreview(attachment: CommentAttachment, token: String) {
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
+    var viewerOpen by remember(attachment.url) { mutableStateOf(false) }
     val request = remember(attachment.url, token) {
         ImageRequest.Builder(context)
             .data(attachment.url)
@@ -146,7 +159,7 @@ fun CommentImagePreview(attachment: CommentAttachment, token: String) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { uriHandler.openUri(attachment.openUrl) },
+            .clickable { viewerOpen = true },
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -189,5 +202,97 @@ fun CommentImagePreview(attachment: CommentAttachment, token: String) {
                 .aspectRatio(16f / 9f)
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest)
         )
+    }
+
+    if (viewerOpen) {
+        FullscreenImageViewer(
+            request = request,
+            contentDescription = attachment.label,
+            onDismiss = { viewerOpen = false }
+        )
+    }
+}
+
+@Composable
+private fun FullscreenImageViewer(
+    request: ImageRequest,
+    contentDescription: String,
+    onDismiss: () -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val overlayColor = if (isDark) Color.Black else Color.White
+    var scale by remember { mutableStateOf(1f) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(overlayColor.copy(alpha = 0.8f))
+                .clipToBounds()
+        ) {
+            SubcomposeAsyncImage(
+                model = request,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Fit,
+                loading = {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                },
+                error = {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Unable to load image",
+                            color = if (isDark) Color.White else Color.Black
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offsetX
+                        translationY = offsetY
+                    }
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 5f)
+                            offsetX += pan.x
+                            offsetY += pan.y
+                            if (scale == 1f) {
+                                offsetX = 0f
+                                offsetY = 0f
+                            }
+                        }
+                    }
+            )
+
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+                    .background(
+                        if (isDark) Color.White.copy(alpha = 0.18f)
+                        else Color.Black.copy(alpha = 0.12f),
+                        RoundedCornerShape(50)
+                    )
+            ) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = "Close image",
+                    tint = if (isDark) Color.White else Color.Black
+                )
+            }
+        }
     }
 }
