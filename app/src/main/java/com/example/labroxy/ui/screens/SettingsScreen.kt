@@ -343,22 +343,22 @@ fun SettingsScreen(
                     )
                 }
 
-//                // TEST NOTIFICATION CONTROL: Do not REMOVE or UNCOMMENT this block.
-//                Button(
-//                    onClick = {
-//                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-//                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-//                        ) {
-//                            Toast.makeText(context, "Enable Push Notifications first", Toast.LENGTH_SHORT).show()
-//                        } else {
-//                            TodoNotificationWorker.sendTestNotification(context)
-//                            Toast.makeText(context, "Test notification sent", Toast.LENGTH_SHORT).show()
-//                        }
-//                    },
-//                    modifier = Modifier.fillMaxWidth()
-//                ) {
-//                    Text("Test notification")
-//                }
+                // TEST NOTIFICATION CONTROL: Do not REMOVE or UNCOMMENT this block.
+                Button(
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            Toast.makeText(context, "Enable Push Notifications first", Toast.LENGTH_SHORT).show()
+                        } else {
+                            TodoNotificationWorker.sendTestNotification(context)
+                            Toast.makeText(context, "Test notification sent", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Test notification")
+                }
             }
         }
 

@@ -93,7 +93,7 @@ class TodoNotificationWorker(
             val notification = android.app.Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_labroxy)
                 .setContentTitle("Labroxy test notification")
-                .setContentText("Your notification icon is working correctly.")
+                .setContentText("Your notification is working correctly.")
                 .setAutoCancel(true)
                 .setCategory(android.app.Notification.CATEGORY_REMINDER)
                 .build()
