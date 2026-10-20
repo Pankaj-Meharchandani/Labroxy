@@ -18,6 +18,12 @@
  */
 package com.example.labroxy.ui.components
 
+import android.content.ContentValues
+import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +33,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +46,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.AssistChip
@@ -54,6 +62,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,6 +86,10 @@ import com.example.labroxy.data.GitLabLabel
 import com.example.labroxy.ui.util.CommentAttachment
 import com.example.labroxy.ui.util.gitLabColor
 import com.example.labroxy.ui.util.readableOn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Locale
 
 @Composable
 fun MetricChip(icon: ImageVector, text: String) {
@@ -208,6 +221,8 @@ fun CommentImagePreview(attachment: CommentAttachment, token: String) {
         FullscreenImageViewer(
             request = request,
             contentDescription = attachment.label,
+            downloadUrl = attachment.url,
+            token = token,
             onDismiss = { viewerOpen = false }
         )
     }
@@ -217,10 +232,14 @@ fun CommentImagePreview(attachment: CommentAttachment, token: String) {
 private fun FullscreenImageViewer(
     request: ImageRequest,
     contentDescription: String,
+    downloadUrl: String,
+    token: String,
     onDismiss: () -> Unit
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val overlayColor = if (isDark) Color.Black else Color.White
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var scale by remember { mutableStateOf(1f) }
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
@@ -276,23 +295,136 @@ private fun FullscreenImageViewer(
                     }
             )
 
-            IconButton(
-                onClick = onDismiss,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(12.dp)
-                    .background(
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            downloadImage(context, downloadUrl, token, contentDescription)
+                        }
+                    },
+                    modifier = Modifier.background(
                         if (isDark) Color.White.copy(alpha = 0.18f)
                         else Color.Black.copy(alpha = 0.12f),
                         RoundedCornerShape(50)
                     )
-            ) {
-                Icon(
-                    Icons.Outlined.Close,
-                    contentDescription = "Close image",
-                    tint = if (isDark) Color.White else Color.Black
-                )
+                ) {
+                    Icon(
+                        Icons.Outlined.Download,
+                        contentDescription = "Download image",
+                        tint = if (isDark) Color.White else Color.Black
+                    )
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.background(
+                        if (isDark) Color.White.copy(alpha = 0.18f)
+                        else Color.Black.copy(alpha = 0.12f),
+                        RoundedCornerShape(50)
+                    )
+                ) {
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = "Close image",
+                        tint = if (isDark) Color.White else Color.Black
+                    )
+                }
             }
+        }
+    }
+}
+
+private suspend fun downloadImage(context: Context, url: String, token: String, label: String) {
+    try {
+        withContext(Dispatchers.IO) {
+            val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 30_000
+                readTimeout = 60_000
+                if (token.isNotBlank()) setRequestProperty("PRIVATE-TOKEN", token)
+            }
+            try {
+                val responseCode = connection.responseCode
+                if (responseCode !in 200..299) error("Server returned HTTP $responseCode")
+
+                val serverMimeType = connection.contentType?.substringBefore(';')?.takeIf { it.isNotBlank() }
+                val urlPathName = java.net.URL(url).path.substringAfterLast('/').takeIf { it.isNotBlank() }
+                    ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                val headerFileName = connection.getHeaderField("Content-Disposition")
+                    ?.let { header ->
+                        Regex("filename\\*=UTF-8''([^;]+)|filename=\\\"?([^;\\\"]+)\\\"?", RegexOption.IGNORE_CASE)
+                            .find(header)
+                            ?.let { match -> match.groups[1]?.value ?: match.groups[2]?.value }
+                    }
+                val sourceName = headerFileName ?: urlPathName ?: label
+                val fileHint = "$sourceName $url".lowercase(Locale.ROOT)
+                val inferredMimeType = when {
+                    fileHint.endsWith(".jpg") || fileHint.endsWith(".jpeg") -> "image/jpeg"
+                    fileHint.endsWith(".png") -> "image/png"
+                    fileHint.endsWith(".gif") -> "image/gif"
+                    fileHint.endsWith(".webp") -> "image/webp"
+                    fileHint.endsWith(".svg") -> "image/svg+xml"
+                    else -> null
+                }
+                val mimeType = serverMimeType?.takeIf { it.startsWith("image/", ignoreCase = true) }
+                    ?: inferredMimeType
+                    ?: "image/png"
+                val extension = when (mimeType.lowercase(Locale.ROOT)) {
+                    "image/jpeg" -> ".jpg"
+                    "image/png" -> ".png"
+                    "image/gif" -> ".gif"
+                    "image/webp" -> ".webp"
+                    "image/svg+xml" -> ".svg"
+                    else -> ""
+                }
+                val baseName = sourceName.substringAfterLast('/').substringBefore('?')
+                    .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                    .ifBlank { "labroxy_image" }
+                val fileName = if (baseName.contains('.')) baseName else baseName + extension
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                        put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Labroxy")
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                    val resolver = context.contentResolver
+                    val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                        ?: error("Unable to create image file")
+                    try {
+                        resolver.openOutputStream(uri)?.use { output ->
+                            connection.inputStream.use { input -> input.copyTo(output) }
+                        } ?: error("Unable to open image file")
+                        resolver.update(uri, ContentValues().apply {
+                            put(MediaStore.Images.Media.IS_PENDING, 0)
+                        }, null, null)
+                    } catch (error: Throwable) {
+                        resolver.delete(uri, null, null)
+                        throw error
+                    }
+                } else {
+                    val directory = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+                        ?: error("Pictures directory unavailable")
+                    directory.mkdirs()
+                    java.io.File(directory, fileName).outputStream().use { output ->
+                        connection.inputStream.use { input -> input.copyTo(output) }
+                    }
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "download Successful", Toast.LENGTH_SHORT).show()
+        }
+    } catch (error: Throwable) {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "Download failed: ${error.message ?: "unknown error"}", Toast.LENGTH_SHORT).show()
         }
     }
 }
