@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.labroxy.data.AppSettings
+import com.example.labroxy.notifications.TodoNotificationWorker
 
 @Composable
 fun SettingsScreen(
@@ -341,6 +342,23 @@ fun SettingsScreen(
                         onCheckedChange = { vibrationEnabled = it }
                     )
                 }
+
+//                // TEST NOTIFICATION CONTROL: Do not REMOVE or UNCOMMENT this block.
+//                Button(
+//                    onClick = {
+//                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+//                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+//                        ) {
+//                            Toast.makeText(context, "Enable Push Notifications first", Toast.LENGTH_SHORT).show()
+//                        } else {
+//                            TodoNotificationWorker.sendTestNotification(context)
+//                            Toast.makeText(context, "Test notification sent", Toast.LENGTH_SHORT).show()
+//                        }
+//                    },
+//                    modifier = Modifier.fillMaxWidth()
+//                ) {
+//                    Text("Test notification")
+//                }
             }
         }
 

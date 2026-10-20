@@ -32,6 +32,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.example.labroxy.data.GitLabRepository
 import com.example.labroxy.data.SessionStore
+import com.example.labroxy.R
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
@@ -64,7 +65,7 @@ class TodoNotificationWorker(
                 val text = listOfNotNull(project, todo.body?.takeIf { it.isNotBlank() }).joinToString(" · ")
                     .ifBlank { todo.action.replace('_', ' ') }
                 val notification = android.app.Notification.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setSmallIcon(R.drawable.ic_stat_labroxy)
                     .setContentTitle(title)
                     .setContentText(text)
                     .setAutoCancel(true)
@@ -81,6 +82,23 @@ class TodoNotificationWorker(
         private const val WORK_NAME = "todo_notification_work"
         private const val IMMEDIATE_WORK_NAME = "todo_notification_work_immediate"
         private const val CHANNEL_ID = "gitlab_todos"
+        private const val TEST_NOTIFICATION_ID = 0x4C425859
+
+        fun sendTestNotification(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) return
+
+            ensureChannel(context)
+            val notification = android.app.Notification.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_labroxy)
+                .setContentTitle("Labroxy test notification")
+                .setContentText("Your notification icon is working correctly.")
+                .setAutoCancel(true)
+                .setCategory(android.app.Notification.CATEGORY_REMINDER)
+                .build()
+            NotificationManagerCompat.from(context).notify(TEST_NOTIFICATION_ID, notification)
+        }
 
         private fun ensureChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
