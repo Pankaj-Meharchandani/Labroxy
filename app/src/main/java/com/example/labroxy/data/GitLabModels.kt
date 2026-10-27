@@ -81,6 +81,8 @@ data class GitLabIssue(
     @SerialName("web_url") val webUrl: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
+    @SerialName("start_date") val startDate: String? = null,
+    @SerialName("due_date") val dueDate: String? = null,
     val author: GitLabUser? = null,
     val assignee: GitLabUser? = null,
     val assignees: List<GitLabUser> = emptyList(),

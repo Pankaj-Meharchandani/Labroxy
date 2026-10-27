@@ -72,6 +72,7 @@ import com.example.labroxy.ui.components.GitLabLabelChip
 import com.example.labroxy.ui.components.LoadingBlock
 import com.example.labroxy.ui.components.MetricChip
 import com.example.labroxy.ui.util.ReplyTarget
+import com.example.labroxy.ui.util.compactGitLabDate
 import com.example.labroxy.ui.util.projectId
 import kotlinx.coroutines.launch
 
@@ -174,6 +175,19 @@ fun WorkDetailScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(loaded.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                                if (loaded.target is DetailTarget.Issue) {
+                                    val dates = listOfNotNull(
+                                        loaded.startDate?.takeIf { it.isNotBlank() }?.let { "Start: ${compactGitLabDate(it)}" },
+                                        loaded.dueDate?.takeIf { it.isNotBlank() }?.let { "Due: ${compactGitLabDate(it)}" }
+                                    )
+                                    if (dates.isNotEmpty()) {
+                                        Text(
+                                            dates.joinToString(" · "),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                                 
                                 if (!loaded.description.isNullOrBlank()) {
                                     NoteBody(

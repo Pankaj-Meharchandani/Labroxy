@@ -145,6 +145,13 @@ fun IssueRow(issue: GitLabIssue, onUserClick: (String) -> Unit = {}, onClick: ()
         onClick = onClick
     ) {
         LabelRow(issue.labels)
+        val dates = listOfNotNull(
+            issue.startDate?.takeIf { it.isNotBlank() }?.let { "Start: ${compactGitLabDate(it)}" },
+            issue.dueDate?.takeIf { it.isNotBlank() }?.let { "Due: ${compactGitLabDate(it)}" }
+        )
+        if (dates.isNotEmpty()) {
+            Text(dates.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
